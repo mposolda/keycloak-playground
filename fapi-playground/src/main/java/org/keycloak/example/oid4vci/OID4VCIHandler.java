@@ -7,6 +7,8 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.jboss.logging.Logger;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.OID4VCConstants;
+import org.keycloak.admin.client.Keycloak;
+import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.example.Services;
 import org.keycloak.example.bean.InfoBean;
 import org.keycloak.example.handlers.ActionHandler;
@@ -17,9 +19,11 @@ import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.jose.jws.JWSInputException;
 import org.keycloak.protocol.oid4vc.issuance.OID4VCAuthorizationDetailResponse;
 import org.keycloak.protocol.oid4vc.issuance.OID4VCAuthorizationDetailsProcessor;
+import org.keycloak.protocol.oid4vc.issuance.requiredactions.VerifiableCredentialOfferAction;
 import org.keycloak.protocol.oid4vc.model.*;
 import org.keycloak.protocol.oidc.grants.PreAuthorizedCodeGrantTypeFactory;
 import org.keycloak.representations.IDToken;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.sdjwt.vp.SdJwtVP;
 import org.keycloak.testsuite.util.oauth.AbstractHttpPostRequest;
 import org.keycloak.testsuite.util.oauth.AccessTokenResponse;
@@ -39,6 +43,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.keycloak.OAuth2Constants.OPENID_CREDENTIAL;
+import static org.keycloak.constants.OID4VCIConstants.VERIFIABLE_CREDENTIAL_OFFER_PROVIDER_ID;
+import static org.keycloak.example.util.MyConstants.REALM_NAME;
 
 public class OID4VCIHandler implements ActionHandler {
 
@@ -54,6 +60,8 @@ public class OID4VCIHandler implements ActionHandler {
                 "oid4vci-wellknown-endpoint", this::handleOID4VCIWellKnownEndpointAction,
                 "oid4vci-authz-code-flow", this::handleAuthzCodeFlow,
                 "oid4vci-pre-authz-code-flow", this::handleCreateCredentialOfferAction,
+                "oid4vci-required-action", this::createRequiredAction,
+                "oid4vci-pre-authz-code-with-offer", this::handlePreAuthzFlowWithOffer,
                 "oid4vci-credential-request", this::credentialRequest,
                 "oid4vci-last-credential-response", this::getLastCredentialResponse,
                 "oid4vci-create-presentation", this::createPresentation
@@ -222,10 +230,15 @@ public class OID4VCIHandler implements ActionHandler {
         }
     }
 
+    private InfoBean handlePreAuthzFlowWithOffer(ActionHandlerContext actionContext) {
+        // TODO:mposolda
+        return new InfoBean("Hello", "hello");
+    }
+
     // TODO: Use OAuthClient to invoke OID4VCI?
     private static CredentialIssuer invokeOID4VCIWellKnownEndpoint() {
         CloseableHttpClient httpClient = Services.instance().getHttpClient();
-        String oid4vciWellKnownUrl = MyConstants.SERVER_ROOT + "/.well-known/openid-credential-issuer/realms/" + MyConstants.REALM_NAME;
+        String oid4vciWellKnownUrl = MyConstants.SERVER_ROOT + "/.well-known/openid-credential-issuer/realms/" + REALM_NAME;
 
         SimpleHttp simpleHttp = SimpleHttp.doGet(oid4vciWellKnownUrl, httpClient);
         try {
@@ -490,4 +503,46 @@ public class OID4VCIHandler implements ActionHandler {
         }
 
     }
+
+    private InfoBean createRequiredAction(ActionHandlerContext actionContext) {
+        OID4VCIContext oid4vciCtx = actionContext.getSession().getOrCreateOID4VCIContext();
+        collectOID4VCIConfigParams(actionContext.getParams(), oid4vciCtx);
+        String username = StringUtil.isNotBlank(oid4vciCtx.getPreauthzUsername()) ? oid4vciCtx.getPreauthzUsername() : null;
+        if (username == null) {
+            return new InfoBean("No username provided", "Fill username field to find the user to whom required action would be created");
+        }
+        try (Keycloak adminClient = Services.instance().getAdminClient()) {
+            List<UserRepresentation> users = adminClient.realm(REALM_NAME).users().search(username);
+            if (users.isEmpty()) {
+                return new InfoBean("User not found", "User " + username + " not found");
+            } else if (users.size() > 1) {
+                return new InfoBean("More users found", "More users for " + username + ". Please adjust searching.");
+            } else {
+                // Set required-action to the user
+                UserRepresentation userRep = users.get(0);
+                UserResource user = adminClient.realm(REALM_NAME).users().get(userRep.getId());
+
+                if (oid4vciCtx.getSelectedCredentialId() == null && oid4vciCtx.getSelectedCredentialId().isBlank()) {
+                    return new InfoBean("No selected", "Please select OID4VCI credential to be used from available credentials");
+                }
+                CredentialIssuer credIssuerMetadata = oid4vciCtx.getCredentialIssuerMetadata();
+                SupportedCredentialConfiguration supportedCredConfig = credIssuerMetadata.getCredentialsSupported().get(oid4vciCtx.getSelectedCredentialId());
+                String clientScopeName = supportedCredConfig.getScope();
+
+                VerifiableCredentialOfferAction.CredentialOfferUserConfig cfg = new VerifiableCredentialOfferAction.CredentialOfferUserConfig();
+                cfg.setClientScopeName(clientScopeName);
+                String reqAction = VERIFIABLE_CREDENTIAL_OFFER_PROVIDER_ID + ":" + cfg.asConfigString();
+                userRep.setRequiredActions(List.of(VERIFIABLE_CREDENTIAL_OFFER_PROVIDER_ID + ":" + cfg.asConfigString()));
+                user.update(userRep);
+
+                try {
+                    Map<String, String> result = Map.of("username", username, "Required action", reqAction, "Client scope", clientScopeName);
+                    return new InfoBean("User updated", JsonSerialization.writeValueAsPrettyString(result));
+                } catch (IOException ioe) {
+                    throw new MyException("Error when providing user");
+                }
+            }
+        }
+    }
+
 }
