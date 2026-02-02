@@ -38,6 +38,11 @@ public class OAuthClientUtil {
         return request;
     }
 
+    public static GenericRequestContext getRequestInfoAsCtx(AbstractHttpPostRequest postRequest) {
+        Map<String, Object> map = getRequestInfo(postRequest);
+        return new GenericRequestContext((String) map.get("endpoint"), (Map<String, String>) map.get("Headers"), (Map<String, String>) map.get("Params"));
+    }
+
     public static Map<String, Object> getRequestInfo(AbstractHttpGetRequest getRequest) {
         Map<String, Object> request = new HashMap<>();
 

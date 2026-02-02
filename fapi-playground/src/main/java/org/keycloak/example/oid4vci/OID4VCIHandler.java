@@ -1,6 +1,5 @@
 package org.keycloak.example.oid4vci;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import jakarta.ws.rs.core.HttpHeaders;
@@ -16,13 +15,16 @@ import org.keycloak.example.util.*;
 import org.keycloak.jose.jws.JWSHeader;
 import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.jose.jws.JWSInputException;
-import org.keycloak.protocol.oid4vc.issuance.OID4VCAuthorizationDetailsResponse;
+import org.keycloak.protocol.oid4vc.issuance.OID4VCAuthorizationDetailResponse;
+import org.keycloak.protocol.oid4vc.issuance.OID4VCAuthorizationDetailsProcessor;
 import org.keycloak.protocol.oid4vc.model.*;
 import org.keycloak.protocol.oidc.grants.PreAuthorizedCodeGrantTypeFactory;
 import org.keycloak.representations.IDToken;
 import org.keycloak.sdjwt.vp.SdJwtVP;
 import org.keycloak.testsuite.util.oauth.AbstractHttpPostRequest;
 import org.keycloak.testsuite.util.oauth.AccessTokenResponse;
+import org.keycloak.testsuite.util.oauth.oid4vc.PreAuthorizedCodeGrantRequest;
+import org.keycloak.util.AuthorizationDetailsParser;
 import org.keycloak.util.JsonSerialization;
 import org.keycloak.utils.StringUtil;
 
@@ -42,6 +44,10 @@ public class OID4VCIHandler implements ActionHandler {
 
     private static final Logger log = Logger.getLogger(OID4VCIHandler.class);
 
+    static {
+        AuthorizationDetailsParser.registerParser(OPENID_CREDENTIAL, new OID4VCAuthorizationDetailsProcessor.OID4VCAuthorizationDetailsParser());
+    }
+
     @Override
     public Map<String, Function<ActionHandlerContext, InfoBean>> getActions() {
         return Map.of(
@@ -56,22 +62,23 @@ public class OID4VCIHandler implements ActionHandler {
 
     @Override
     public void onAuthenticationCallback(SessionData session, AccessTokenResponse accessTokenResponse) {
-        try {
-            String tokenResp = JsonSerialization.writeValueAsString(accessTokenResponse); // TODO: Dummy to convert to String, which need to be converted back. Improve...
-            List<OID4VCAuthorizationDetailsResponse> authzDetails = parseAuthorizationDetails(tokenResp);
-
-            if (authzDetails.isEmpty()) {
-                return;
-            } else if (authzDetails.size() > 1) {
-                throw new MyException("Unexpected size of the authzDetails. Size was " + authzDetails.size() + ". The response was: " + tokenResp);
-            }
-            OID4VCIContext oid4vciCtx = session.getOrCreateOID4VCIContext();
-            oid4vciCtx.setAuthzDetails(authzDetails.get(0));
-
-            oid4vciCtx.setAccessToken(accessTokenResponse.getAccessToken());
-        } catch (IOException ioe) {
-            throw new MyException("Unexpected issue when parsing authentication data");
+        if (accessTokenResponse.getAuthorizationDetails() == null || accessTokenResponse.getAuthorizationDetails().isEmpty()) {
+            return;
         }
+        List<OID4VCAuthorizationDetailResponse> authzDetails = accessTokenResponse.getAuthorizationDetails()
+                .stream()
+                .map(authDetail -> authDetail.asSubtype(OID4VCAuthorizationDetailResponse.class))
+                .toList();
+
+        if (authzDetails.isEmpty()) {
+            return;
+        } else if (authzDetails.size() > 1) {
+            throw new MyException("Unexpected size of the authzDetails. Size was " + authzDetails.size() + ". The response had authorization details: " + accessTokenResponse.getAuthorizationDetails());
+        }
+        OID4VCIContext oid4vciCtx = session.getOrCreateOID4VCIContext();
+        oid4vciCtx.setAuthzDetails(authzDetails.get(0));
+
+        oid4vciCtx.setAccessToken(accessTokenResponse.getAccessToken());
     }
 
     @Override
@@ -119,7 +126,7 @@ public class OID4VCIHandler implements ActionHandler {
         String origLoginUrl = LoginUtil.getAuthorizationRequestUrl(session.getOidcConfigContext(), actionContext.getUriInfo(), scope);
 
         /// Add authorization_details to it
-        List<AuthorizationDetail> authzDetails = getAuthorizationDetailsForAuthzCodeFlow(credIssuerMetadata, oid4VCIContext.getSelectedCredentialId());
+        List<OID4VCAuthorizationDetail> authzDetails = getAuthorizationDetailsForAuthzCodeFlow(credIssuerMetadata, oid4VCIContext.getSelectedCredentialId());
         try {
             String authzDetailsStr = JsonSerialization.writeValueAsString(authzDetails);
 
@@ -134,7 +141,7 @@ public class OID4VCIHandler implements ActionHandler {
         }
     }
 
-    private List<AuthorizationDetail> getAuthorizationDetailsForAuthzCodeFlow(CredentialIssuer credIssuerMetadata, String selectedCredentialConfigId) {
+    private List<OID4VCAuthorizationDetail> getAuthorizationDetailsForAuthzCodeFlow(CredentialIssuer credIssuerMetadata, String selectedCredentialConfigId) {
         List<String> expectedMandatoryClaims = "education-certificate-config-id".equals(selectedCredentialConfigId) ? List.of("university", "education-certificate-number")
                 : Collections.emptyList(); // TODO: Maybe update these to not be hardcoded this way...
 
@@ -145,7 +152,7 @@ public class OID4VCIHandler implements ActionHandler {
                 .map(expectedClaimName -> getMandatoryClaimForAuthzDetails(expectedClaimName, format))
                 .toList();
 
-        AuthorizationDetail authDetail = new AuthorizationDetail();
+        OID4VCAuthorizationDetail authDetail = new OID4VCAuthorizationDetail();
         authDetail.setType(OPENID_CREDENTIAL);
         authDetail.setCredentialConfigurationId(selectedCredentialConfigId);
         authDetail.setClaims(claimsDescriptions);
@@ -199,7 +206,7 @@ public class OID4VCIHandler implements ActionHandler {
                 oid4VCIContext.setCredentialOfferURI(credentialOfferCreation.getResponse());
 
                 // Step 3: Token-request with pre-authorized code
-                WebRequestContext<GenericRequestContext, org.keycloak.representations.AccessTokenResponse> tokenResponse = triggerTokenRequestOfPreAuthorizationGrant(session.getAuthServerInfo().getTokenEndpoint(), credentialOffer.getResponse(), session);
+                WebRequestContext<GenericRequestContext, AccessTokenResponse> tokenResponse = triggerTokenRequestOfPreAuthorizationGrant(session.getAuthServerInfo().getTokenEndpoint(), credentialOffer.getResponse(), session);
 
                 return new InfoBean(
                         "Request 1: Credential offer creation request", JsonSerialization.writeValueAsPrettyString(credentialOfferCreation.getRequest()),
@@ -323,66 +330,33 @@ public class OID4VCIHandler implements ActionHandler {
         return res;
     }
 
-    private static WebRequestContext<GenericRequestContext, org.keycloak.representations.AccessTokenResponse> triggerTokenRequestOfPreAuthorizationGrant(String tokenEndpoint, CredentialsOffer credentialsOffer, SessionData session) {
+    private static WebRequestContext<GenericRequestContext, AccessTokenResponse> triggerTokenRequestOfPreAuthorizationGrant(String tokenEndpoint, CredentialsOffer credentialsOffer, SessionData session) {
         CloseableHttpClient httpClient = Services.instance().getHttpClient();
         PreAuthorizedCode preAuthorizedCode = credentialsOffer.getGrants().getPreAuthorizedCode();
 
         try {
-            SimpleHttp simpleHttp = SimpleHttp.doPost(tokenEndpoint, httpClient);
-            Map<String, String> params = Map.of(
-                    OAuth2Constants.GRANT_TYPE, PreAuthorizedCodeGrantTypeFactory.GRANT_TYPE,
-                    PreAuthorizedCodeGrantTypeFactory.CODE_REQUEST_PARAM, preAuthorizedCode.getPreAuthorizedCode()
-            );
-            for (Map.Entry<String, String> param : params.entrySet()) {
-                simpleHttp.param(param.getKey(), param.getValue());
-            }
-            String response = simpleHttp.asString();
+            PreAuthorizedCodeGrantRequest preAuthzGrantRequest = Services.instance().getOauthClient().client(session.getRegisteredClient().getClientId())
+                    .oid4vc()
+                    .preAuthorizedCodeGrantRequest(preAuthorizedCode.getPreAuthorizedCode())
+                    .endpoint(tokenEndpoint);
+            AccessTokenResponse tokenResponse = preAuthzGrantRequest.send();
 
-            List<OID4VCAuthorizationDetailsResponse> authzDetails = parseAuthorizationDetails(response);
+            List<OID4VCAuthorizationDetailResponse> authzDetails = tokenResponse.getAuthorizationDetails(OID4VCAuthorizationDetailResponse.class);
             if (authzDetails.size() != 1) {
-                throw new MyException("Unexpected size of the authzDetails. Size was " + authzDetails.size() + ". The response was: " + response);
+                throw new MyException("Unexpected size of the authzDetails. Size was " + authzDetails.size() + ". The response was: " + JsonSerialization.writeValueAsString(tokenResponse));
             }
 
             OID4VCIContext oid4vciCtx = session.getOrCreateOID4VCIContext();
             oid4vciCtx.setAuthzDetails(authzDetails.get(0));
 
             // Save last access_token
-            org.keycloak.representations.AccessTokenResponse atResponse = JsonSerialization.readValue(response, org.keycloak.representations.AccessTokenResponse.class);
-            String accessToken = atResponse.getToken();
-            oid4vciCtx.setAccessToken(accessToken);
+            oid4vciCtx.setAccessToken(tokenResponse.getAccessToken());
 
-            GenericRequestContext requestCtx = new GenericRequestContext(tokenEndpoint, null, params);
+            GenericRequestContext requestCtx = OAuthClientUtil.getRequestInfoAsCtx(preAuthzGrantRequest);
 
-            return new WebRequestContext<>(requestCtx, atResponse);
+            return new WebRequestContext<>(requestCtx, tokenResponse);
         } catch (IOException ioe) {
             throw new MyException("Exception when triggered Token endpoint of pre-authorized grant", ioe);
-        }
-    }
-
-    /**
-     * Parse authorization details from the token response.
-     */
-    // TODO: Could be simplified probably...
-    private static List<OID4VCAuthorizationDetailsResponse> parseAuthorizationDetails(String responseBody) {
-        try {
-            // Parse the JSON response to extract authorization_details
-            Map<String, Object> responseMap = JsonSerialization.readValue(responseBody, Map.class);
-            Object authDetailsObj = responseMap.get(OAuth2Constants.AUTHORIZATION_DETAILS);
-
-            if (authDetailsObj == null) {
-                authDetailsObj = responseMap.get("authorizationDetails"); // Fallback. It is dummy that this is needed. Should be improved...
-            }
-
-            if (authDetailsObj == null) {
-                return Collections.emptyList();
-            }
-
-            // Convert to list of OID4VCAuthorizationDetailsResponse
-            return JsonSerialization.readValue(JsonSerialization.writeValueAsString(authDetailsObj),
-                    new TypeReference<List<OID4VCAuthorizationDetailsResponse>>() {
-                    });
-        } catch (IOException e) {
-            throw new MyException("Failed to parse authorization_details from response", e);
         }
     }
 

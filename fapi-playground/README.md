@@ -168,7 +168,7 @@ OID4VCI demo expects that server is started with the `--features=oid4vc-vci` fea
 Please login to the admin console, delete realm `test` (if you have existing realm from previous demos) and import realm
 from the file [oid4vci/singleFile-realm.json](oid4vci/singleFile-realm.json) .
 
-2) Go to http://localhost:8543 . Then copy/paste initial access token (see above for how to obtain it), register OIDC client (Tested with client authentication method `None`)
+2) Go to https://localhost:8543 . Then copy/paste initial access token (see above for how to obtain it), register OIDC client (Tested with client authentication method `None`)
 
 3) Go back to Keycloak admin console and lookup your newly registered client from the `test` realm.
 Manually update the client to:
