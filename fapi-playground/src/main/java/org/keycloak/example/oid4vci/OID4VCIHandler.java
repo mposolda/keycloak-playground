@@ -220,10 +220,15 @@ public class OID4VCIHandler implements ActionHandler {
         CloseableHttpClient httpClient = Services.instance().getHttpClient();
         String oid4vciWellKnownUrl = MyConstants.SERVER_ROOT + "/.well-known/openid-credential-issuer/realms/" + MyConstants.REALM_NAME;
 
+        SimpleHttp simpleHttp = SimpleHttp.doGet(oid4vciWellKnownUrl, httpClient);
         try {
-            return SimpleHttp.doGet(oid4vciWellKnownUrl, httpClient).asJson(CredentialIssuer.class);
+            return simpleHttp.asJson(CredentialIssuer.class);
         } catch (IOException ioe) {
-            throw new MyException("Exception when triggered OID4VCI endpoint", ioe);
+            try {
+                throw new MyException("Exception when triggered OID4VCI endpoint. Response was: " + simpleHttp.asString(), ioe);
+            } catch (IOException ioe2) {
+                throw new MyException("Exception when triggered OID4VCI endpoint. Original exception was: " + ioe.getMessage() + ", exception: " + ioe2.getMessage(), ioe2);
+            }
         }
     }
 
