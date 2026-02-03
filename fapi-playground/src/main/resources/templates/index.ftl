@@ -155,10 +155,10 @@
                     </select>
                 </td>
             </tr>
-            <tr><td>Claims to present (divided by comma): </td><td><input id="oid4ci-claims-to-present" name="oid4ci-claims-to-present" value="${oid4vciCtx.claimsToPresent!}"></td></tr>
-            <tr><td>Client ID (for pre-authorized grant): </td><td><input id="oid4ci-preauthz-client_id" name="oid4ci-preauthz-client_id" value="${oid4vciCtx.preauthzClientId!}"></td></tr>
+<!--            <tr><td>Claims to present (divided by comma): </td><td><input id="oid4ci-claims-to-present" name="oid4ci-claims-to-present" value="${oid4vciCtx.claimsToPresent!}"></td></tr>-->
+<!--            <tr><td>Client ID (for pre-authorized grant): </td><td><input id="oid4ci-preauthz-client_id" name="oid4ci-preauthz-client_id" value="${oid4vciCtx.preauthzClientId!}"></td></tr>-->
             <tr><td>Username (for required-action or pre-authorized grant with REST): </td><td><input id="oid4ci-preauthz-username" name="oid4ci-preauthz-username" value="${oid4vciCtx.preauthzUsername!}"></td></tr>
-            <tr><td>Credential offer (for pre-authorized grant with offer): </td><td><input id="oid4ci-preauthz-username" name="oid4ci-preauthz-username" value="${oid4vciCtx.preauthzUsername!}"></td></tr>
+            <tr><td>Credential offer (for pre-authorized grant with offer): </td><td><input id="oid4ci-preauthz-offer" name="oid4ci-preauthz-offer" value="${oid4vciCtx.preauthzOffer!}"></td></tr>
         </table>
     </div>
     <br />
