@@ -155,7 +155,7 @@
                     </select>
                 </td>
             </tr>
-<!--            <tr><td>Claims to present (divided by comma): </td><td><input id="oid4ci-claims-to-present" name="oid4ci-claims-to-present" value="${oid4vciCtx.claimsToPresent!}"></td></tr>-->
+            <tr><td>Claims to present (divided by comma): </td><td><input id="oid4ci-claims-to-present" name="oid4ci-claims-to-present" value="${oid4vciCtx.claimsToPresent!}"></td></tr>
 <!--            <tr><td>Client ID (for pre-authorized grant): </td><td><input id="oid4ci-preauthz-client_id" name="oid4ci-preauthz-client_id" value="${oid4vciCtx.preauthzClientId!}"></td></tr>-->
             <tr><td>Username (for required-action or pre-authorized grant with REST): </td><td><input id="oid4ci-preauthz-username" name="oid4ci-preauthz-username" value="${oid4vciCtx.preauthzUsername!}"></td></tr>
             <tr><td>Credential offer (for pre-authorized grant with offer): </td><td><input id="oid4ci-preauthz-offer" name="oid4ci-preauthz-offer" value="${oid4vciCtx.preauthzOffer!}"></td></tr>
@@ -170,8 +170,8 @@
         <#if oid4vciCtx.credentialIssuerMetadata?? && appState.authenticated>
             <button onclick="submitWithAction('oid4vci-pre-authz-code-flow')">Cred. issuance - Pre-authorized code grant (REST endpoint flow)</button>
         </#if>
-        <#if appState.authenticated>
-            <button onclick="submitWithAction('oid4vci-required-action')">Set credential offer required action to some user</button>
+        <#if oid4vciCtx.credentialIssuerMetadata??>
+            <button onclick="submitWithAction('oid4vci-aia')">Action flow - credential offer displayed by Keycloak</button>
         </#if>
         <#if appState.authenticated>
             <button onclick="submitWithAction('oid4vci-pre-authz-code-with-offer')">Cred. issuance - Pre-authorized code grant (with offer)</button>

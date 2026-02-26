@@ -1,11 +1,7 @@
 package org.keycloak.example.oid4vci;
 
 import org.jboss.logging.Logger;
-import org.keycloak.protocol.oid4vc.issuance.OID4VCAuthorizationDetailResponse;
-import org.keycloak.protocol.oid4vc.model.CredentialIssuer;
-import org.keycloak.protocol.oid4vc.model.CredentialOfferURI;
-import org.keycloak.protocol.oid4vc.model.CredentialResponse;
-import org.keycloak.protocol.oid4vc.model.CredentialsOffer;
+import org.keycloak.protocol.oid4vc.model.*;
 
 import java.util.Collections;
 import java.util.List;
@@ -27,7 +23,7 @@ public class OID4VCIContext {
     private CredentialIssuer credentialIssuerMetadata;
     private CredentialOfferURI credentialOfferURI;
     private CredentialsOffer credentialsOffer;
-    private OID4VCAuthorizationDetailResponse authzDetails;
+    private OID4VCAuthorizationDetail authzDetails;
     private CredentialResponse credentialResponse;
     private String accessToken;
 
@@ -103,11 +99,11 @@ public class OID4VCIContext {
         this.credentialsOffer = credentialsOffer;
     }
 
-    public OID4VCAuthorizationDetailResponse getAuthzDetails() {
+    public OID4VCAuthorizationDetail getAuthzDetails() {
         return authzDetails;
     }
 
-    public void setAuthzDetails(OID4VCAuthorizationDetailResponse authzDetails) {
+    public void setAuthzDetails(OID4VCAuthorizationDetail authzDetails) {
         this.authzDetails = authzDetails;
     }
 

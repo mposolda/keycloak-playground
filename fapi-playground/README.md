@@ -160,7 +160,7 @@ for the successful login.
 
 ### OID4VCI Demo
 
-NOTE: At the time of this writing, this is expected to be tested with Keycloak server 26.5.0.
+NOTE: At the time of this writing, this is expected to be tested with Keycloak server built from this branch https://github.com/mposolda/keycloak/tree/46196-credential-offer-aia-rebase .
 
 OID4VCI demo expects that server is started with the `--features=oid4vc-vci` feature enabled.
 
@@ -204,14 +204,40 @@ diploma somewhere to be able to share it with the administrator)
 with some claims (EG. `university,firstName,lastName`) and click `Create presentation from last verifiable credential`.
 You can see sd-jwt with only subset of the claims.
 
-12) Change credential type to `oid4vc_natural_person` and fill `Username (for pre-authorized grant)` as `alice` . Now it is OK to
+### Flow with pre-authorized grant and application-initiated action
+
+NOTE: This part works with Keycloak server built from this PR https://github.com/keycloak/keycloak/pull/46327 
+(effectively this branch https://github.com/mposolda/keycloak/tree/46196-credential-offer-aia-rebase ), which is
+not merged yet at the time of this writing. 
+
+12) User authenticates with the "authorization code flow" to the portal application from where he can choose verifiable credential.
+Once user clicks on the credential, he is redirected to Keycloak, from where he eventually needs to re-authenticate and then the page
+with QR-code is displayed to him. He can then scan the credential to his wallet from there or copy it (if it is on same device like the browser
+where he authenticated).
+
+This fapi-playground uses simplified way as both "portal" and "wallet" are emulated by same playground application.
+
+12.a) Once the `Education certificate` is selected as `Credential type` . Click on button `Action flow - credential offer displayed by Keycloak` and then click `Login` link at the bottom of the page
+You will see the page with credential-offer (possibly after re-authentication of user `john` with his password).
+12.b) Copy `Offer URL` link to your clipboard and click `Continue`
+12.c) After being redirected back to playground, you may fill the field `Credential offer (for pre-authorized grant with offer)` with the
+and paste the credential offer from your clipboard (It would be value similar to `openid-credential-offer://?credential_offer_uri=https%3A%2F%2Fas.keycloak-fapi.org%3A8443%2Frealms%2Ftest%2Fprotocol%2Foid4vc%2Fcredential-offer%2Fm6AKGyb8ZA7o6lTXPDlWVq-7kGvr6KDd8ztQB_cfAJSdi-Y2MxVQ2-9ninbrUiz9i71QKckH7l8i5U4_fduKFg`)
+12.d) Click button `Cred. issuance - pre-authorized code grant (with offer)` . 
+12.e) Repeat steps 9, 10, 11 and observe new credential for user `john`
+
+### Flow with pre-authorized grant and offer created by sending request to custom REST endpoint
+
+13) Pre-authorized code obtained by "administrator" sending request to the REST endpoint, which creates credential-offer for target user. 
+NOTE: This might not be supported in the future in a way currently done in this demo.
+
+13.a) Change credential type to `oid4vc_natural_person` and fill `Username (for pre-authorized grant)` as `alice` . Now it is OK to
 send `Credential issuance - pre-authorized code` grant. See requests to observe the credential-offer and pre-authorized token
 obtained for `alice` .
 **NOTE 1:** user `john` can obtain credential-offer for `alice` as he has role `credential-offer-create`).
 **NOTE 2:** Not sure if this flow would still work in later Keycloak versions in a way shown in this demo. See discussion https://github.com/keycloak/keycloak/discussions/44764
 for the details.
 
-13) Repeat steps 9, 10, 11 and observe new `oid4vc_natural_person` VC for alice
+13.b) Repeat steps 9, 10, 11 and observe new `oid4vc_natural_person` VC for alice
 
 
 ## Test with latest Keycloak nightly 
