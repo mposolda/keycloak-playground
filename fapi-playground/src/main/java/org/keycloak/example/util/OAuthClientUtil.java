@@ -25,6 +25,7 @@ public class OAuthClientUtil {
         // String endpoint = postRequest.getEndpoint();
         String endpoint = invokeMethod(postRequest, AbstractHttpPostRequest.class, "getEndpoint");
         request.put("endpoint", endpoint);
+        request.put("Method", "POST");
 
         // String headers = postRequest.headers;
         Map<String, String> headers = (Map<String, String>) getField(postRequest, AbstractHttpPostRequest.class, "headers");
@@ -38,11 +39,6 @@ public class OAuthClientUtil {
         return request;
     }
 
-    public static GenericRequestContext getRequestInfoAsCtx(AbstractHttpPostRequest postRequest) {
-        Map<String, Object> map = getRequestInfo(postRequest);
-        return new GenericRequestContext((String) map.get("endpoint"), (Map<String, String>) map.get("Headers"), (Map<String, String>) map.get("Params"));
-    }
-
     public static Map<String, Object> getRequestInfo(AbstractHttpGetRequest getRequest) {
         Map<String, Object> request = new HashMap<>();
 
@@ -50,6 +46,7 @@ public class OAuthClientUtil {
         String endpoint = invokeMethod(getRequest, AbstractHttpGetRequest.class, "getEndpoint");
 
         request.put("endpoint", endpoint);
+        request.put("Method", "GET");
 
         HttpGet apacheGet = (HttpGet) getField(getRequest, AbstractHttpGetRequest.class, "get");
         Map<String, String> headers = Stream.of(apacheGet.getAllHeaders())

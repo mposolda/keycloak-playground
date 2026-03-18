@@ -2,8 +2,6 @@ package org.keycloak.example.oid4vci;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import jakarta.ws.rs.core.HttpHeaders;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.jboss.logging.Logger;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.VCFormat;
@@ -15,7 +13,7 @@ import org.keycloak.example.util.*;
 import org.keycloak.jose.jws.JWSHeader;
 import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.jose.jws.JWSInputException;
-import org.keycloak.protocol.oid4vc.issuance.OID4VCAuthorizationDetailsProcessor;
+import org.keycloak.protocol.oid4vc.issuance.OID4VCAuthorizationDetailsParser;
 import org.keycloak.protocol.oid4vc.issuance.requiredactions.VerifiableCredentialOfferAction;
 import org.keycloak.protocol.oid4vc.model.*;
 import org.keycloak.representations.IDToken;
@@ -23,8 +21,7 @@ import org.keycloak.sdjwt.vp.SdJwtVP;
 import org.keycloak.testsuite.util.oauth.AbstractHttpPostRequest;
 import org.keycloak.testsuite.util.oauth.AccessTokenResponse;
 import org.keycloak.testsuite.util.oauth.LoginUrlBuilder;
-import org.keycloak.testsuite.util.oauth.oid4vc.CredentialOfferResponse;
-import org.keycloak.testsuite.util.oauth.oid4vc.PreAuthorizedCodeGrantRequest;
+import org.keycloak.testsuite.util.oauth.oid4vc.*;
 import org.keycloak.util.AuthorizationDetailsParser;
 import org.keycloak.util.JsonSerialization;
 import org.keycloak.utils.StringUtil;
@@ -49,7 +46,7 @@ public class OID4VCIHandler implements ActionHandler {
     private static final Logger log = Logger.getLogger(OID4VCIHandler.class);
 
     static {
-        AuthorizationDetailsParser.registerParser(OPENID_CREDENTIAL, new OID4VCAuthorizationDetailsProcessor.OID4VCAuthorizationDetailsParser());
+        AuthorizationDetailsParser.registerParser(OPENID_CREDENTIAL, new OID4VCAuthorizationDetailsParser());
     }
 
     @Override
@@ -94,17 +91,20 @@ public class OID4VCIHandler implements ActionHandler {
     }
 
     private InfoBean handleOID4VCIWellKnownEndpointAction(ActionHandlerContext actionContext) {
-        CredentialIssuer credentialIssuer = invokeOID4VCIWellKnownEndpoint();
-
-        OID4VCIContext oid4VCIContext = actionContext.getSession().getOrCreateOID4VCIContext();
-        oid4VCIContext.setCredentialIssuerMetadata(credentialIssuer);
-
-        List<OID4VCIContext.OID4VCCredential> availableCreds = getAvailableCredentials(credentialIssuer);
-        log.infof("Available OID4VC credentials: %s", availableCreds);
-        oid4VCIContext.setAvailableCredentials(availableCreds);
-
         try {
-            return new InfoBean("OID4VCI well-known response", JsonSerialization.writeValueAsPrettyString(credentialIssuer));
+            WebRequestContext<CredentialIssuerMetadataRequest, CredentialIssuerMetadataResponse> ctx = invokeOID4VCIWellKnownEndpoint();
+            CredentialIssuer credentialIssuer = ctx.getResponse().getMetadata();
+
+            OID4VCIContext oid4VCIContext = actionContext.getSession().getOrCreateOID4VCIContext();
+            oid4VCIContext.setCredentialIssuerMetadata(credentialIssuer);
+
+            List<OID4VCIContext.OID4VCCredential> availableCreds = getAvailableCredentials(credentialIssuer);
+            log.infof("Available OID4VC credentials: %s", availableCreds);
+            oid4VCIContext.setAvailableCredentials(availableCreds);
+
+            return new InfoBean(
+                    "OID4VCI well-known request", JsonSerialization.writeValueAsPrettyString(OAuthClientUtil.getRequestInfo(ctx.getRequest())),
+                    "OID4VCI well-known response", JsonSerialization.writeValueAsPrettyString(credentialIssuer));
         } catch (IOException ioe) {
             throw new MyException("Error when trying to deserialize OID4VCI well-known response to string", ioe);
         }
@@ -203,25 +203,23 @@ public class OID4VCIHandler implements ActionHandler {
                 }
 
                 // Step 1: Invoke credential-offer creation to Keycloak
-                WebRequestContext<GenericRequestContext, CredentialOfferURI> credentialOfferCreation = invokeCredentialOfferCreation(oid4VCIContext, lastTokenResponse.getResponse(), oid4VCIContext.getSelectedCredentialId());
-                oid4VCIContext.setCredentialOfferURI(credentialOfferCreation.getResponse());
+                WebRequestContext<CredentialOfferUriRequest, CredentialOfferUriResponse> credentialOfferCreation = invokeCredentialOfferCreation(oid4VCIContext, lastTokenResponse.getResponse(), oid4VCIContext.getSelectedCredentialId());
+                oid4VCIContext.setCredentialOfferURI(credentialOfferCreation.getResponse().getCredentialOfferURI());
 
                 // Step 2: Invoke credential-offer URI
                 CredentialOfferURI credentialOfferUri = oid4VCIContext.getCredentialOfferURI();
-                String credOfferUriToInvoke = credentialOfferUri.getIssuer() + credentialOfferUri.getNonce();
-                WebRequestContext<String, CredentialsOffer> credentialOffer = invokeCredentialOfferURI(credOfferUriToInvoke);
-                oid4VCIContext.setCredentialsOffer(credentialOffer.getResponse());
-                oid4VCIContext.setCredentialOfferURI(credentialOfferCreation.getResponse());
+                WebRequestContext<CredentialOfferRequest, CredentialOfferResponse> credentialOffer = invokeCredentialOfferURI(credentialOfferUri);
+                oid4VCIContext.setCredentialsOffer(credentialOffer.getResponse().getCredentialsOffer());
 
                 // Step 3: Token-request with pre-authorized code
-                WebRequestContext<GenericRequestContext, AccessTokenResponse> tokenResponse = triggerTokenRequestOfPreAuthorizationGrant(session.getAuthServerInfo().getTokenEndpoint(), credentialOffer.getResponse(), session);
+                WebRequestContext<PreAuthorizedCodeGrantRequest, AccessTokenResponse> tokenResponse = triggerTokenRequestOfPreAuthorizationGrant(session.getAuthServerInfo().getTokenEndpoint(), credentialOffer.getResponse().getCredentialsOffer(), session);
 
                 return new InfoBean(
-                        "Request 1: Credential offer creation request (admin)", JsonSerialization.writeValueAsPrettyString(credentialOfferCreation.getRequest()),
+                        "Request 1: Credential offer creation request (admin)", JsonSerialization.writeValueAsPrettyString(OAuthClientUtil.getRequestInfo(credentialOfferCreation.getRequest())),
                         "Response 1: Credential offer creation response (admin)", JsonSerialization.writeValueAsPrettyString(credentialOfferCreation.getResponse()),
-                        "Request 2: Credential Offer request (user)", credentialOffer.getRequest(),
+                        "Request 2: Credential Offer request (user)", JsonSerialization.writeValueAsPrettyString(OAuthClientUtil.getRequestInfo(credentialOffer.getRequest())),
                         "Response 2: Credential Offer response (user)", JsonSerialization.writeValueAsPrettyString(credentialOffer.getResponse()),
-                        "Request 3: Pre-authz grant Token request (user)", JsonSerialization.writeValueAsPrettyString(tokenResponse.getRequest()),
+                        "Request 3: Pre-authz grant Token request (user)", JsonSerialization.writeValueAsPrettyString(OAuthClientUtil.getRequestInfo(tokenResponse.getRequest())),
                         "Response 3: Pre-authz grant Token response (user)", JsonSerialization.writeValueAsPrettyString(tokenResponse.getResponse()));
 
             } catch (IOException ioe) {
@@ -241,54 +239,55 @@ public class OID4VCIHandler implements ActionHandler {
         }
         log.infof("Using credential offer uri: %s", credentialOfferFullUri);
 
-        String credentialOfferUri = getCredentialOfferUri(credentialOfferFullUri);
-        if (StringUtil.isBlank(credentialOfferUri)) {
+        CredentialOfferURI credentialOfferUri = getCredentialOfferUri(credentialOfferFullUri);
+        if (credentialOfferUri == null) {
             return new InfoBean("No credential offer", "Was not able to parse credential offer from the provided Credential offer: " + credentialOfferFullUri);
         }
-        log.infof("Calling uri '%s' to retrive credential offer", credentialOfferUri);
+        log.infof("Calling uri '%s' to retrive credential offer", credentialOfferUri.getCredentialOfferUri());
 
         try {
             // Step 1: Invoke credential-offer URI to obtain reference
-            WebRequestContext<String, CredentialsOffer> credentialOffer = invokeCredentialOfferURI(credentialOfferUri);
-            oid4VCIContext.setCredentialsOffer(credentialOffer.getResponse());
+            WebRequestContext<CredentialOfferRequest, CredentialOfferResponse> credentialOffer = invokeCredentialOfferURI(credentialOfferUri);
+            oid4VCIContext.setCredentialsOffer(credentialOffer.getResponse().getCredentialsOffer());
 
             // Step 2: Token-request with pre-authorized code
-            WebRequestContext<GenericRequestContext, AccessTokenResponse> tokenResponse = triggerTokenRequestOfPreAuthorizationGrant(session.getAuthServerInfo().getTokenEndpoint(), credentialOffer.getResponse(), session);
+            WebRequestContext<PreAuthorizedCodeGrantRequest, AccessTokenResponse> tokenResponse = triggerTokenRequestOfPreAuthorizationGrant(session.getAuthServerInfo().getTokenEndpoint(),
+                    credentialOffer.getResponse().getCredentialsOffer(), session);
 
             return new InfoBean(
-                    "Request 1: Credential Offer request", credentialOffer.getRequest(),
+                    "Request 1: Credential Offer request", JsonSerialization.writeValueAsPrettyString(OAuthClientUtil.getRequestInfo(credentialOffer.getRequest())),
                     "Response 1: Credential Offer response", JsonSerialization.writeValueAsPrettyString(credentialOffer.getResponse()),
-                    "Request 2: Pre-authz grant Token request", JsonSerialization.writeValueAsPrettyString(tokenResponse.getRequest()),
+                    "Request 2: Pre-authz grant Token request", JsonSerialization.writeValueAsPrettyString(OAuthClientUtil.getRequestInfo(tokenResponse.getRequest())),
                     "Response 2: Pre-authz grant Token response", JsonSerialization.writeValueAsPrettyString(tokenResponse.getResponse()));
         } catch (IOException ioe) {
             throw new MyException("Error when trying to deserialize response to string", ioe);
         }
     }
 
-    private String getCredentialOfferUri(String fullOfferUri) {
+    private CredentialOfferURI getCredentialOfferUri(String fullOfferUri) {
         String[] splits = fullOfferUri.split("credential_offer_uri=");
         if (splits.length < 2) {
             return null;
         }
         String url = splits[1];
-        return URLDecoder.decode(url, StandardCharsets.UTF_8);
+        String url1 = URLDecoder.decode(url, StandardCharsets.UTF_8);
+
+        int lastIndex = url1.lastIndexOf('/');
+        CredentialOfferURI credOfferURI = new CredentialOfferURI();
+        credOfferURI.setIssuer(url1.substring(0, lastIndex));
+        credOfferURI.setNonce(url1.substring(lastIndex));
+        return credOfferURI;
     }
 
     // TODO: Use OAuthClient to invoke OID4VCI?
-    private static CredentialIssuer invokeOID4VCIWellKnownEndpoint() {
-        CloseableHttpClient httpClient = Services.instance().getHttpClient();
+    private static WebRequestContext<CredentialIssuerMetadataRequest, CredentialIssuerMetadataResponse> invokeOID4VCIWellKnownEndpoint() {
+        OAuthClient oauth = Services.instance().getOauthClient();
         String oid4vciWellKnownUrl = MyConstants.SERVER_ROOT + "/.well-known/openid-credential-issuer/realms/" + REALM_NAME;
 
-        SimpleHttp simpleHttp = SimpleHttp.doGet(oid4vciWellKnownUrl, httpClient);
-        try {
-            return simpleHttp.asJson(CredentialIssuer.class);
-        } catch (IOException ioe) {
-            try {
-                throw new MyException("Exception when triggered OID4VCI endpoint. Response was: " + simpleHttp.asString(), ioe);
-            } catch (IOException ioe2) {
-                throw new MyException("Exception when triggered OID4VCI endpoint. Original exception was: " + ioe.getMessage() + ", exception: " + ioe2.getMessage(), ioe2);
-            }
-        }
+        CredentialIssuerMetadataRequest request = oauth.oid4vc().issuerMetadataRequest()
+                .endpoint(oid4vciWellKnownUrl);
+        CredentialIssuerMetadataResponse response = request.send();
+        return new WebRequestContext<>(request, response);
     }
 
     private void collectOID4VCIConfigParams(Map<String, String> params, OID4VCIContext oid4vciCtx) {
@@ -332,63 +331,51 @@ public class OID4VCIHandler implements ActionHandler {
     }
 
 
-    private static WebRequestContext<GenericRequestContext, CredentialOfferURI> invokeCredentialOfferCreation(OID4VCIContext oid4vciCtx, AccessTokenResponse lastTokenResponse, String credentialConfigId) {
-        CloseableHttpClient httpClient = Services.instance().getHttpClient();
+    private static WebRequestContext<CredentialOfferUriRequest, CredentialOfferUriResponse> invokeCredentialOfferCreation(OID4VCIContext oid4vciCtx, AccessTokenResponse lastTokenResponse, String credentialConfigId) {
+        OAuthClient oauth = Services.instance().getOauthClient();
 
         try {
             IDToken idToken = new JWSInput(lastTokenResponse.getIdToken()).readJsonContent(IDToken.class);
             String username = StringUtil.isNotBlank(oid4vciCtx.getPreauthzUsername()) ? oid4vciCtx.getPreauthzUsername() : idToken.getPreferredUsername();
             String clientId = StringUtil.isNotBlank(oid4vciCtx.getPreauthzClientId()) ? oid4vciCtx.getPreauthzClientId() : idToken.getIssuedFor();
-            String credentialOfferCreationUri = getCredentialOfferUri(credentialConfigId, true, username, clientId);
 
-            CredentialOfferURI credentialOfferURI;
-            String credOfferURIStr = SimpleHttp.doGet(credentialOfferCreationUri, httpClient)
-                    .auth(lastTokenResponse.getAccessToken())
-                    .asString(); // TODO: OID4VCI This should not return JSON, but rather some generic URI instead. Should this be even invoked from this app?
+            CredentialOfferUriRequest credRequest = oauth.oid4vc()
+                    .credentialOfferUriRequest(credentialConfigId)
+                    .preAuthorized(true) // TODO:mposolda
+                    .bearerToken(lastTokenResponse.getAccessToken())
+                    .targetUser(username);
 
-            if (credOfferURIStr.contains("\"error\"")) {
-                throw new MyException("Error when invoking credential creation endpoint: " + credOfferURIStr);
+            CredentialOfferUriResponse  credentialOfferURIResponse = credRequest.send();
+
+            if (credentialOfferURIResponse.getError() != null) {
+                throw new MyException("Error when invoking credential creation endpoint. Error: " + credentialOfferURIResponse.getError() +
+                        ", Error description: " + credentialOfferURIResponse.getErrorDescription());
             }
 
-            credentialOfferURI = JsonSerialization.readValue(credOfferURIStr, CredentialOfferURI.class);
-            GenericRequestContext request = new GenericRequestContext(credentialOfferCreationUri, Map.of(HttpHeaders.AUTHORIZATION, "Bearer " + lastTokenResponse.getAccessToken()), (String) null);
-            return new WebRequestContext<>(request, credentialOfferURI);
-        } catch (JWSInputException | IOException ioe) {
+            return new WebRequestContext<>(credRequest, credentialOfferURIResponse);
+        } catch (JWSInputException ioe) {
             throw new MyException("Exception when triggered OID4VCI credential offer creation endpoint", ioe);
         }
     }
 
-    private static WebRequestContext<String, CredentialsOffer> invokeCredentialOfferURI(String credOfferURI) {
+    private static WebRequestContext<CredentialOfferRequest, CredentialOfferResponse> invokeCredentialOfferURI(CredentialOfferURI credOfferURI) {
         OAuthClient oauth = Services.instance().getOauthClient();
-        CredentialOfferResponse credentialOfferResponse = oauth.oid4vc().credentialOfferRequest((String) null)
-                .endpoint(credOfferURI)
-                .send();
-        return new WebRequestContext<>(credOfferURI, credentialOfferResponse.getCredentialsOffer());
+        CredentialOfferRequest credentialOfferRequest = oauth.oid4vc().credentialOfferRequest(credOfferURI);
+        CredentialOfferResponse credentialOfferResponse =credentialOfferRequest.send();
+        return new WebRequestContext<>(credentialOfferRequest, credentialOfferResponse);
     }
 
-    private static String getCredentialOfferUri(String credentialConfigId, Boolean preAuthorized, String appUsername, String appClientId) {
-        String res = Services.instance().getSession().getAuthServerInfo().getIssuer() + "/protocol/oid4vc/credential-offer-uri?credential_configuration_id=" + credentialConfigId;
-        if (preAuthorized != null)
-            res += "&pre_authorized=" + preAuthorized;
-        if (appClientId != null)
-            res += "&client_id=" + appClientId;
-        if (appUsername != null)
-            res += "&username=" + appUsername;
-        return res;
-    }
-
-    private static WebRequestContext<GenericRequestContext, AccessTokenResponse> triggerTokenRequestOfPreAuthorizationGrant(String tokenEndpoint, CredentialsOffer credentialsOffer, SessionData session) {
-        CloseableHttpClient httpClient = Services.instance().getHttpClient();
-        PreAuthorizedCode preAuthorizedCode = credentialsOffer.getGrants().getPreAuthorizedCode();
+    private static WebRequestContext<PreAuthorizedCodeGrantRequest, AccessTokenResponse> triggerTokenRequestOfPreAuthorizationGrant(String tokenEndpoint, CredentialsOffer credentialsOffer, SessionData session) {
+        String preAuthorizedCode = credentialsOffer.getPreAuthorizedCode();
 
         try {
             PreAuthorizedCodeGrantRequest preAuthzGrantRequest = Services.instance().getOauthClient().client(session.getRegisteredClient().getClientId())
                     .oid4vc()
-                    .preAuthorizedCodeGrantRequest(preAuthorizedCode.getPreAuthorizedCode())
+                    .preAuthorizedCodeGrantRequest(preAuthorizedCode)
                     .endpoint(tokenEndpoint);
             AccessTokenResponse tokenResponse = preAuthzGrantRequest.send();
 
-            List<OID4VCAuthorizationDetail> authzDetails = tokenResponse.getOid4vcAuthorizationDetails();
+            List<OID4VCAuthorizationDetail> authzDetails = tokenResponse.getOID4VCAuthorizationDetails();
             if (authzDetails.size() != 1) {
                 throw new MyException("Unexpected size of the authzDetails. Size was " + authzDetails.size() + ". The response was: " + JsonSerialization.writeValueAsString(tokenResponse));
             }
@@ -399,43 +386,22 @@ public class OID4VCIHandler implements ActionHandler {
             // Save last access_token
             oid4vciCtx.setAccessToken(tokenResponse.getAccessToken());
 
-            GenericRequestContext requestCtx = OAuthClientUtil.getRequestInfoAsCtx(preAuthzGrantRequest);
-
-            return new WebRequestContext<>(requestCtx, tokenResponse);
+            return new WebRequestContext<>(preAuthzGrantRequest, tokenResponse);
         } catch (IOException ioe) {
             throw new MyException("Exception when triggered Token endpoint of pre-authorized grant", ioe);
         }
     }
 
-    private static WebRequestContext<GenericRequestContext, Object> triggerCredentialRequest(OID4VCIContext oid4VCIContext) {
-        CloseableHttpClient httpClient = Services.instance().getHttpClient();
+    private static WebRequestContext<Oid4vcCredentialRequest, Oid4vcCredentialResponse> triggerCredentialRequest(OID4VCIContext oid4VCIContext) {
+        OAuthClient oauth = Services.instance().getOauthClient();
         try {
-            CredentialRequest credentialRequest = new CredentialRequest();
-            credentialRequest.setCredentialIdentifier(oid4VCIContext.getAuthzDetails().getCredentialIdentifiers().get(0));
-
-            String accessToken = oid4VCIContext.getAccessToken();
-
-            String credentialEndpoint = oid4VCIContext.getCredentialIssuerMetadata().getCredentialEndpoint();
-            String credResponse = SimpleHttp.doPost(credentialEndpoint, httpClient)
-                    .auth(accessToken)
-                    .header(HttpHeaders.CONTENT_TYPE, "application/json")
-                    .json(credentialRequest)
-                    .asString();
-
-            Map<String, String> headers = Map.of(HttpHeaders.CONTENT_TYPE, "application/json",
-                    "Authorization", "Bearer " + accessToken);
-            GenericRequestContext ctx = new GenericRequestContext(credentialEndpoint, headers, JsonSerialization.writeValueAsPrettyString(credentialRequest));
-
-            CredentialResponse credentialResponse;
-            try {
-                credentialResponse = JsonSerialization.readValue(credResponse, CredentialResponse.class);
-                return new WebRequestContext<>(ctx, credentialResponse);
-            } catch (IOException ioe) {
-                // This happens in case of error
-                return new WebRequestContext<>(ctx, credResponse);
-            }
-        } catch (IOException e) {
-            throw new MyException("Failed to invoke credential request or parse credential response", e);
+            Oid4vcCredentialRequest credentialRequest = oauth.oid4vc().credentialRequest()
+                    .credentialIdentifier(oid4VCIContext.getAuthzDetails().getCredentialIdentifiers().get(0))
+                    .bearerToken(oid4VCIContext.getAccessToken());
+            Oid4vcCredentialResponse credentialResponse = credentialRequest.send();
+            return new WebRequestContext<>(credentialRequest, credentialResponse);
+        } catch (Exception e) {
+            throw new MyException("Failed to invoke credential request or parse credential response. Details: " + e.getMessage(), e);
         }
     }
 
@@ -448,20 +414,23 @@ public class OID4VCIHandler implements ActionHandler {
         }
 
         try {
-            WebRequestContext<GenericRequestContext, Object> credentialResponse = triggerCredentialRequest(oid4vciCtx);
-            if (credentialResponse.getResponse() instanceof CredentialResponse) {
-                oid4vciCtx.setCredentialResponse((CredentialResponse) credentialResponse.getResponse());
+            WebRequestContext<Oid4vcCredentialRequest, Oid4vcCredentialResponse> credentialResponse = triggerCredentialRequest(oid4vciCtx);
+            Map<String, Object> credRequest = OAuthClientUtil.getRequestInfo(credentialResponse.getRequest());
+            credRequest.put("Body", credentialResponse.getRequest().getCredentialRequest());
 
-                return new InfoBean(
-                        "Credential request", JsonSerialization.writeValueAsPrettyString(credentialResponse.getRequest()),
-                        "Credential response", JsonSerialization.writeValueAsPrettyString(credentialResponse.getResponse()));
-            } else {
-                return new InfoBean(
-                        "Credential request", JsonSerialization.writeValueAsPrettyString(credentialResponse.getRequest()),
-                        "Credential response - error", JsonSerialization.writeValueAsPrettyString(credentialResponse.getResponse()));
+            String credentialResponseStr;
+            try {
+                oid4vciCtx.setCredentialResponse(credentialResponse.getResponse().getCredentialResponse());
+                credentialResponseStr = JsonSerialization.writeValueAsPrettyString(credentialResponse.getResponse());
+            } catch (IllegalStateException iae) {
+                credentialResponseStr = "IllegalStateException: " + iae.getMessage();
             }
-        } catch (IOException ioe) {
-            throw new MyException("Unexpected exception when preparing/sending credential request");
+
+            return new InfoBean(
+                    "Credential request", JsonSerialization.writeValueAsPrettyString(credRequest),
+                    "Credential response", credentialResponseStr);
+        } catch (Exception ioe) {
+            throw new MyException("Unexpected exception when preparing/sending credential request: " + ioe.getMessage(), ioe);
         }
     }
 
