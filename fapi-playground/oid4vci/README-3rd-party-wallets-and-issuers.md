@@ -191,7 +191,7 @@ Authlete sits behind such frontend servers and is invisible from end users.
   * REST API for creating credential-offer : https://www.authlete.com/developers/oid4vci/#341-the-vcioffercreate-api
     NOTE: For pre-authorized code, they support returning `pre-authorized code` and `tx-code` in same REST response. Not ideal for security (although it is needed in case of Authlete as it does not provide full authorization-server and identity-server, but rather just APIs)
  
-  * REST API for the token endpoint and credential request
+  * REST API for the token endpoint and credential request - TODO: More details
 
 * On the side of OIDC client, there is switch "Credential response encrypted", which specifies if response to this client must be always encrypted.
   
@@ -203,8 +203,8 @@ Authlete sits behind such frontend servers and is invisible from end users.
 
 * Support for mdoc credential format (in addition to sd-jwt and jwt_vc_json)
 
-* 3.7 contains support for configuration in the management console: https://www.authlete.com/developers/oid4vci/#37-configure-oid4vci-in-the-authlete-management-console
+* Section 3.7 contains support for configuration in the management console: https://www.authlete.com/developers/oid4vci/#37-configure-oid4vci-in-the-authlete-management-console
 
-* 4 Demos https://www.authlete.com/developers/oid4vci/#4-oid4vci-demo . Provided demos are:
+* Demos https://www.authlete.com/developers/oid4vci/#4-oid4vci-demo . Provided demos are:
   * Pre-Authorized Code Flow + Key Proof + SD-JWT VC 
   * Authorization Code Flow + PAR + DPoP + mdoc
