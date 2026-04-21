@@ -55,14 +55,14 @@ already present in the mentioned realm. For the reference, here is the setup of 
 
 4) **Pre-authorized code grant**
 
-* Open https://2ce816c8200c75.lhr.life/realms/test/account with browser on your laptop
+* Open URL similar to https://2ce816c8200c75.lhr.life/realms/test/account with browser on your laptop
 
 * After redirect to Keycloak, the login screen is being displayed and browser contains OIDC authentication URL. Add this parameter to the end of the browser URL and refresh the browser URL:
 ```
 &kc_action=verifiable_credential_offer:eyJjcmVkZW50aWFsX2NvbmZpZ3VyYXRpb25faWQiOiJlZHVjYXRpb24tY2VydGlmaWNhdGUtY29uZmlnLWlkIiwiY2xpZW50X2lkIjoiOWM0ODFkYzMtMmFkMC00ZmUwLTg4MWQtYzMyYWQwMmZlMGZjIiwicHJlX2F1dGhvcml6ZWQiOnRydWV9
 ```
     
-   NOTE: The `kc_action` parameter above is parameterized action for displaying credential-offer. The parameter is base64-encoded value of the credential-offer config, which looks like this (in the plain code):
+   NOTE: The `kc_action` parameter above is parameterized AIA for displaying credential-offer. The parameter is base64-encoded value of the credential-offer config, which looks like this (in the plain code):
 ```
 {
   "credential_configuration_id":"education-certificate-config-id",
@@ -107,11 +107,68 @@ TODO
 
 maybe "Inji" and/or "Valera"
 
+TODO
+
 ## 3rd party OIDC issuers
 
 ### WSO2
 
 The latest stable WSO2 version 7.2.0 doesn't have support for Verifiable credentials. However the support is available in the
 "next" version (7.3.0-Beta1 downloadable from https://github.com/wso2/product-is/releases ).
+
+* Here a quickstart how to run a server and login as an admin to the admin console: https://is.docs.wso2.com/en/next/get-started/quick-set-up/
+
+NOTE: Before running the server, I've added this to `repository/conf/deployment.toml` :
+```
+[verifiable_credentials]
+enable = true
+```
+Maybe it is not strictly needed, but it helped to see the verifiable credentials and option for creating digital wallet in the application
+
+* In the 7.3.0-Beta1 version, I was able to go to admin console "Verifiable credentials" tab and create "Verifiable credential template" . This is
+pretty much similar we have for OID4VCI client scope and there are bit similar settings, however there are less options
+in comparison to Keycloak. Important configuration options are "Credential identifier" (maps to `credential_configuration_id` as well as name of the client
+scope), user attributes to map to the credential, validity (30 days by default) and format (supported are `dc+sd-jwt` and `jwt_vc_json` like we have).
+
+
+* WSO2 provide single credential offer for their credential for all users and clients. It can be obtained as an URL directly in the admin console. The URL is "static" URL with something like:
+```
+openid-credential-offer://?credential_offer_uri=https://localhost:9443/oid4vci/credential-offer/48590b61-f6c8-4bdf-8b5b-132ad5ebfee9
+```
+
+When opening https://localhost:9443/oid4vci/credential-offer/48590b61-f6c8-4bdf-8b5b-132ad5ebfee9, I can see static credential offer. Something like:
+```
+{
+  "credential_issuer": "https://localhost:9443/oid4vci",
+  "credential_configuration_ids": [
+    "wso2-education-cert"
+  ],
+  "grants": {
+    "authorization_code": {
+      "authorization_server": "https://localhost:9443/oauth2/token"
+    }
+  }
+}
+```
+This means there are not concrete credential offers for the concrete clients.
+
+* It is needed to use 3rd party QR code scanner as WSO2 console itself doesn't support built-in QR-code generator
+
+* No `pre-authorized grant` support. No `issuer_state` parameter support for `authorization code` grant.
+
+* Well-known URL available under https://localhost:9443/oid4vci/.well-known/openid-credential-issuer .
+
+* They support integration with some wallets (lissi, heidi, inji). All those wallets require pre-registration of the client
+with specific client_id and redirect_uri. But WSO2 support itself doesn't support setting of "client_id" directly in their
+admin console. It is needed to use REST API for it...
+
+* Supporting only jwt proof. No support for "attestation"
+
+* No support for personalized "Credential offers", "credential permissions" or "credential instances" TODO: Check policies
+
+* More details in the verifiable credentials documentation:
+  * https://is.docs.wso2.com/en/next/guides/verifiable-credentials/ (Intro about protocol)
+  * https://is.docs.wso2.com/en/next/guides/verifiable-credentials/issue-vc/ (How to setup in WSO2)
+  * https://is.docs.wso2.com/en/next/references/concepts/oid4vci/ (More details about the protocol, requests etc)
 
 
