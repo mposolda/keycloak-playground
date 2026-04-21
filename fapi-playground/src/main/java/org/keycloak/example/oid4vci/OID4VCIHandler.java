@@ -292,13 +292,15 @@ public class OID4VCIHandler implements ActionHandler {
 
     private void collectOID4VCIConfigParams(Map<String, String> params, OID4VCIContext oid4vciCtx) {
         String oid4vciCredential = params.get("oid4vci-credential");
+        boolean preAuthorized = params.get("oid4vci-pre-authorized") != null;
         String claimsToPresent = params.get("oid4ci-claims-to-present");
         String preauthzClientId = params.get("oid4ci-preauthz-client_id");
         String preauthzUsername = params.get("oid4ci-preauthz-username");
         String preauthzOffer = params.get("oid4ci-preauthz-offer");
-        log.infof("Selected oid4vciCredential: %s, claimsToPresent: %s, pre-authz clientId: %s, pre-authz username: %s, pre-authz offer: %s",
-                oid4vciCredential, claimsToPresent, preauthzClientId, preauthzUsername, preauthzOffer);
+        log.infof("Selected oid4vciCredential: %s, preAuthorized: %s, claimsToPresent: %s, pre-authz clientId: %s, pre-authz username: %s, pre-authz offer: %s",
+                oid4vciCredential, preAuthorized, claimsToPresent, preauthzClientId, preauthzUsername, preauthzOffer);
         oid4vciCtx.setSelectedCredentialId(oid4vciCredential);
+        oid4vciCtx.setPreAuthorized(preAuthorized);
         oid4vciCtx.setClaimsToPresent(claimsToPresent);
         oid4vciCtx.setPreauthzClientId(preauthzClientId);
         oid4vciCtx.setPreauthzUsername(preauthzUsername);
@@ -518,7 +520,7 @@ public class OID4VCIHandler implements ActionHandler {
         String clientId = actionContext.getSession().getRegisteredClient().getClientId();
 
         LoginUrlBuilder loginUrl = LoginUtil.getAuthorizationRequestUrl(actionContext.getSession().getOidcConfigContext(), actionContext.getUriInfo(), null);
-        VerifiableCredentialOfferAction.CredentialOfferActionConfig cfg = getKcActionConfig(oid4vciCtx.getSelectedCredentialId(), clientId);
+        VerifiableCredentialOfferAction.CredentialOfferActionConfig cfg = getKcActionConfig(oid4vciCtx.getSelectedCredentialId(), clientId, oid4vciCtx.isPreAuthorized());
         String kcAction = getKcActionParameter(cfg);
         loginUrl.kcAction(kcAction);
         String loginUrlStr = loginUrl.build();
@@ -529,11 +531,11 @@ public class OID4VCIHandler implements ActionHandler {
                 "OIDC Authentication Request URL", loginUrlStr);
     }
 
-    private VerifiableCredentialOfferAction.CredentialOfferActionConfig getKcActionConfig(String credentialConfigId, String clientId) {
+    private VerifiableCredentialOfferAction.CredentialOfferActionConfig getKcActionConfig(String credentialConfigId, String clientId, boolean preAuthorized) {
         VerifiableCredentialOfferAction.CredentialOfferActionConfig cfg = new VerifiableCredentialOfferAction.CredentialOfferActionConfig();
         cfg.setCredentialConfigurationId(credentialConfigId);
         cfg.setClientId(clientId);
-        cfg.setPreAuthorized(true);
+        cfg.setPreAuthorized(preAuthorized);
         return cfg;
     }
 

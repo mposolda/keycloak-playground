@@ -14,6 +14,7 @@ public class OID4VCIContext {
 
     // Obtained from config
     private String selectedCredentialId = "";
+    private boolean preAuthorized;
     private String claimsToPresent;
     private String preauthzClientId;
     private String preauthzUsername;
@@ -33,6 +34,14 @@ public class OID4VCIContext {
 
     public void setSelectedCredentialId(String selectedCredentialId) {
         this.selectedCredentialId = selectedCredentialId;
+    }
+
+    public boolean isPreAuthorized() {
+        return preAuthorized;
+    }
+
+    public void setPreAuthorized(boolean preAuthorized) {
+        this.preAuthorized = preAuthorized;
     }
 
     public String getClaimsToPresent() {
@@ -125,6 +134,7 @@ public class OID4VCIContext {
 
     public void cleanup() {
         credentialOfferURI = null;
+        preAuthorized = false;
         credentialsOffer = null;
         authzDetails = null;
         credentialResponse = null;

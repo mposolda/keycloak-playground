@@ -20,11 +20,11 @@
   "clientSessionMaxLifespan" : 0,
   "clientOfflineSessionIdleTimeout" : 0,
   "clientOfflineSessionMaxLifespan" : 0,
-  "accessCodeLifespan" : 60,
-  "accessCodeLifespanUserAction" : 300,
-  "accessCodeLifespanLogin" : 1800,
-  "actionTokenGeneratedByAdminLifespan" : 43200,
-  "actionTokenGeneratedByUserLifespan" : 300,
+  "accessCodeLifespan" : 120,
+  "accessCodeLifespanUserAction" : 360,
+  "accessCodeLifespanLogin" : 1860,
+  "actionTokenGeneratedByAdminLifespan" : 36000,
+  "actionTokenGeneratedByUserLifespan" : 420,
   "oauth2DeviceCodeLifespan" : 600,
   "oauth2DevicePollingInterval" : 5,
   "enabled" : true,
@@ -675,6 +675,10 @@
     "enabled" : true,
     "createdTimestamp" : 1764772292330,
     "totp" : false,
+    "attributes" : {
+      "education-certificate-number" : [ "12345" ],
+      "university" : [ "Harvard university" ]
+    },
     "credentials" : [ {
       "id" : "3bb9462c-607f-4ec7-b4c3-d6db50e9276c",
       "type" : "password",
@@ -3418,7 +3422,8 @@
     "clientSessionMaxLifespan" : "0",
     "frontendUrl" : "",
     "acr.loa.map" : "{}",
-    "preAuthorizedCodeLifespanS" : "900"
+    "preAuthorizedCodeLifespanS" : "900",
+    "credentialOfferLifespanS" : "900"
   },
   "keycloakVersion" : "999.0.0-SNAPSHOT",
   "userManagedAccessAllowed" : false,
