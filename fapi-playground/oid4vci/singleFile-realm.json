@@ -675,6 +675,10 @@
     "enabled" : true,
     "createdTimestamp" : 1764772292330,
     "totp" : false,
+    "attributes" : {
+      "education-certificate-number" : [ "12345" ],
+      "university" : [ "Harvard university" ]
+    },
     "credentials" : [ {
       "id" : "3bb9462c-607f-4ec7-b4c3-d6db50e9276c",
       "type" : "password",
