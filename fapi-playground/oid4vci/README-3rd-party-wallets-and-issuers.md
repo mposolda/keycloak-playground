@@ -32,7 +32,8 @@ run Keycloak on real host with the use of https://localhost.run/docs/http-tunnel
 
 * Copy/paste the URL from the terminal above and start Keycloak with something like:
 ```
-./kc.sh start --hostname https://2ce816c8200c75.lhr.life --http-enabled true --proxy-headers xforwarded --features=oid4vc-vci,oid4vc-vci-preauth-code
+./kc.sh start --hostname https://2ce816c8200c75.lhr.life --http-enabled true \
+--proxy-headers xforwarded --features=oid4vc-vci,oid4vc-vci-preauth-code
 ```
 
 * Keycloak should be up and running on URL like https://2ce816c8200c75.lhr.life with the real certificate
@@ -54,9 +55,9 @@ already present in the mentioned realm. For the reference, here is the setup of 
 
 4) **Pre-authorized code grant**
 
-   4.a) Open https://2ce816c8200c75.lhr.life/realms/test/account
+* Open https://2ce816c8200c75.lhr.life/realms/test/account
 
-   4.b) After redirect to Keycloak, the login screen is being displayed and browser contains OIDC authentication URL. Add this parameter to the end of the browser URL and refresh the browser URL with this parameter:
+* After redirect to Keycloak, the login screen is being displayed and browser contains OIDC authentication URL. Add this parameter to the end of the browser URL and refresh the browser URL with this parameter:
 ```
 &kc_action=verifiable_credential_offer:eyJjcmVkZW50aWFsX2NvbmZpZ3VyYXRpb25faWQiOiJlZHVjYXRpb24tY2VydGlmaWNhdGUtY29uZmlnLWlkIiwiY2xpZW50X2lkIjoiOWM0ODFkYzMtMmFkMC00ZmUwLTg4MWQtYzMyYWQwMmZlMGZjIiwicHJlX2F1dGhvcml6ZWQiOnRydWV9
 ```
@@ -70,11 +71,11 @@ already present in the mentioned realm. For the reference, here is the setup of 
 }
 ```
 
-   4.c) Fill username/password `john-doh@localhost` / `password` . Should be redirected to the screen with education-certificate credential offer
+* Fill username/password `john-doh@localhost` / `password` . Should be redirected to the screen with education-certificate credential offer
 
-   4.d) Scan the displayed QR code with the Lissi ID wallet application
+* Scan the displayed QR code with the Lissi ID wallet application
 
-4.e) Confirm the credential offer for education-certificate. At this point, there were some errors displayed in the application,
+* Confirm the credential offer for education-certificate. At this point, there were some errors displayed in the application,
 however when checking Keycloak events in the admin console, I can see that all events are successful (especially credential-offer creation events, 
 pre-authorized code token request and finally credential event). After restart of the Lissi ID-wallet mobile application, I can
 see the credential displayed successfully (Probably looks like the bug in the Lissi wallet).
