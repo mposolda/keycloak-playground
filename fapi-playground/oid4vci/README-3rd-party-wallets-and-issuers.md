@@ -190,20 +190,21 @@ Authlete sits behind such frontend servers and is invisible from end users.
 
   * REST API for creating credential-offer : https://www.authlete.com/developers/oid4vci/#341-the-vcioffercreate-api
     NOTE: For pre-authorized code, they support returning `pre-authorized code` and `tx-code` in same REST response. Not ideal for security (although it is needed in case of Authlete as it does not provide full authorization-server and identity-server, but rather just APIs)
+ 
+  * REST API for the token endpoint and credential request
 
-  * On the side of OIDC client, there is switch "Credential response encrypted", which specifies if response to this client must be always encrypted.
+* On the side of OIDC client, there is switch "Credential response encrypted", which specifies if response to this client must be always encrypted.
   
-  * Authlete API does not have support for storage/tracking of issued credential instances to concrete users. But in theory, it might be up to the server to store it itself (but this would defeat the purpose of delegating the OID4VCI backend handling to Authlete).
+* Authlete API does not have support for storage/tracking of issued credential instances to concrete users. But in theory, it might be up to the server to store it itself (but this would defeat the purpose of delegating the OID4VCI backend handling to Authlete).
 
-  * Authlete API has support for storing of credential-offers, which were created by the REST API. But Authlete does not have support for "The user john has permission to obtain VC of type `education-certificate`. It might be again up to the application to handle this and create credential-offer just for the users, which are supposed to have the permissions. This means that permissions might not be handled on the Authlete side, but on the Authorization server side)
+* Authlete API has support for storing of credential-offers, which were created by the REST API. But Authlete does not have support for "The user john has permission to obtain VC of type `education-certificate`. It might be again up to the application to handle this and create credential-offer just for the users, which are supposed to have the permissions. This means that permissions might not be handled on the Authlete side, but on the Authorization server side)
 
-  * Authlete has some support for client-attestation client authentication
+* Authlete has some support for client-attestation client authentication
 
-  * Support for mdoc credential format (in addition to sd-jwt and jwt_vc_json)
+* Support for mdoc credential format (in addition to sd-jwt and jwt_vc_json)
 
-  * 3.7 contains support for configuration in the management console: https://www.authlete.com/developers/oid4vci/#37-configure-oid4vci-in-the-authlete-management-console
+* 3.7 contains support for configuration in the management console: https://www.authlete.com/developers/oid4vci/#37-configure-oid4vci-in-the-authlete-management-console
 
-  * 4 Demos https://www.authlete.com/developers/oid4vci/#4-oid4vci-demo . Provided demos are:
-    * Pre-Authorized Code Flow + Key Proof + SD-JWT VC 
-    * Authorization Code Flow + PAR + DPoP + mdoc
-
+* 4 Demos https://www.authlete.com/developers/oid4vci/#4-oid4vci-demo . Provided demos are:
+  * Pre-Authorized Code Flow + Key Proof + SD-JWT VC 
+  * Authorization Code Flow + PAR + DPoP + mdoc
