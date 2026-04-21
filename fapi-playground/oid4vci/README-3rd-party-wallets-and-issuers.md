@@ -55,7 +55,7 @@ already present in the mentioned realm. For the reference, here is the setup of 
 
 4) **Pre-authorized code grant**
 
-* Open https://2ce816c8200c75.lhr.life/realms/test/account
+* Open https://2ce816c8200c75.lhr.life/realms/test/account with browser on your laptop
 
 * After redirect to Keycloak, the login screen is being displayed and browser contains OIDC authentication URL. Add this parameter to the end of the browser URL and refresh the browser URL with this parameter:
 ```
@@ -73,23 +73,23 @@ already present in the mentioned realm. For the reference, here is the setup of 
 
 * Fill username/password `john-doh@localhost` / `password` . Should be redirected to the screen with education-certificate credential offer
 
-* Scan the displayed QR code with the Lissi ID wallet application
+* Scan the displayed QR code with the Lissi ID wallet application from your mobile phone
 
-* Confirm the credential offer for education-certificate. At this point, there were some errors displayed in the application,
+* Confirm the credential offer for education-certificate in your mobile. At this point, there were some errors displayed in the application,
 however when checking Keycloak events in the admin console, I can see that all events are successful (especially credential-offer creation events, 
-pre-authorized code token request and finally credential event). After restart of the Lissi ID-wallet mobile application, I can
+pre-authorized code token request and finally credential event). After restart of the Lissi ID-wallet application on my mobile, I can
 see the credential displayed successfully (Probably looks like the bug in the Lissi wallet).
 
 
-5) Authorization code grant
+5) **Authorization code grant**
 
-5.a) Same steps like for like (4.a, b, c, d), but use this `kc_action` for authorization_code (parameter "pre-authorized" is false within this request)
+* Same steps like for like "Pre-authorized grant", but use this `kc_action` for authorization_code (parameter "pre-authorized" is false within this request)
 
 ```
 &kc_action=verifiable_credential_offer:eyJjcmVkZW50aWFsX2NvbmZpZ3VyYXRpb25faWQiOiJlZHVjYXRpb24tY2VydGlmaWNhdGUtY29uZmlnLWlkIiwiY2xpZW50X2lkIjoiOWM0ODFkYzMtMmFkMC00ZmUwLTg4MWQtYzMyYWQwMmZlMGZjIiwicHJlX2F1dGhvcml6ZWQiOmZhbHNlfQ==
 ```
 
-5.b) After scan, it is also needed to authenticate user in the mobile browser. As `authorization code` grant runs the full OIDC
+* After scan, it is also needed to authenticate user in the mobile browser. As `authorization code` grant runs the full OIDC
 login flow with the "authorization code" grant.
 
 NOTE (for the reference): Lissi wallet authorization_code uses PAR requests to start the authorization-code flow
