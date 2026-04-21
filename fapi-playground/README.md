@@ -36,9 +36,12 @@ mvn clean install
 
 ## Start and prepare keycloak
 
-1) Copy keystore + truststore to the Keycloak distribution:
+1) Copy keystore + truststore to the Keycloak distribution.
+Also copy OID4VCI keystore. See [README-generate-keystore.md](keystores/oid4vci-ssl-test/README-generate-keystore.md) for the details on how that one was generated:
 ```
 cp keystores/keycloak.* $KEYCLOAK_HOME/bin
+mkdir -p $KEYCLOAK_HOME/data/test
+cp keystores/oid4vci-ssl-test/keystore.p12 $KEYCLOAK_HOME/data/test/keystore-e256.p12
 ```
 
 2) Pre-create admin user with username `admin` and password `admin`
@@ -74,7 +77,7 @@ later use in the demo. For demo purposes, use bigger number of clients (EG. 99).
 mvn quarkus:run
 ```
 
-For debugging, it is possible to use `mvn quarkus:dev` (However application is then running on https://localhost:8543 )
+For debugging, it is possible to use `mvn quarkus:dev -Dquarkus.devservices.enabled=false` (However application is then running on https://localhost:8543 )
 
 ## Demo
 
@@ -167,6 +170,9 @@ and "Start example app and deploy the example". The additional steps are specifi
 **NOTE:** The OID4VCI feature is still under development in Keycloak. So please note that this demo will also probably change
 in the future. Lots of the used flows might be done differently in the future.
 
+**NOTE:** Current version of this demo in this branch works with the latest nightly build only instead of the latest Keycloak release.
+See below in the section "Test with latest Keycloak nightly"
+
 1) It is expected to import realm `test` from this project with some pre-configured client scopes and stuff.
 Please login to the admin console, delete realm `test` (if you have existing realm from previous demos) and import realm
 from the file [oid4vci/singleFile-realm.json](oid4vci/singleFile-realm.json) .
@@ -197,22 +203,32 @@ you selected `Education Certificate` in previous step (you can use any random va
 and due the fact that `education-certificate` scope was added as a request parameter to OIDC authentication request together
 with authorization details
 
-3) Now you can click `Credential request`, which should fail as user missing the mandatory attribute `education-certificate-number`.
+3) After performing this, you will see error with status 400 in the token-request because user `john` does not have requested verifiable credential.
+So next step, is to add the `Verifiable credential` to the user. In the other tab in the admin console, admin can click to user `john`
+-> tab `Verifiable credentials` -> Button `create verifiable credential` and create the credential for the requested scope (EG. education-certificate)
+for the user `john`. Then after retry from the step 1, the token response should be successful. 
 
-4) In the other tab in the admin console, admin is able to manually update user `john` and fill the `Education certificate number` for him 
+4) Now you can click `Credential request`, which should fail as user missing the mandatory attribute `education-certificate-number`.
+
+5) In the other tab in the admin console, admin is able to manually update user `john` and fill the `Education certificate number` for him 
 (You can again use any number you prefer) and then save user.
 In reality, assumption is, that there should be some "business process" needed for this (EG. user `john` uploads his university
 diploma somewhere to be able to share it with the administrator)
 
-5) Go back to fapi-demo and click `Credential request` again. Now credential should be successfully issued for `john` .
+6) Go back to fapi-demo and click `Credential request` again. Now credential should be successfully issued for `john` .
 
-6) See button `Show last verifiable credential` to see the parsed sd-jwt data.
+7) See button `Show last verifiable credential` to see the parsed sd-jwt data.
  
-7) Then fill `Claims to present (divided by comma):`
+8) Then fill `Claims to present (divided by comma):`
 with some claims (EG. `university,firstName,lastName`) and click `Create presentation from last verifiable credential`.
 You can see sd-jwt with only subset of the claims.
 
+9) In the admin console, you can click on the user `john` -> tab `Verifiable credentials` -> option `View issued credentials` for `education-certificate`
+and seeing that there is new issued-credential
+
 #### Flow with pre-authorized grant and application-initiated action
+
+NOTE: This is temporarily disabled. It does not work as it supports some pieces in Keycloak, which are experimental and were changed in the Keycloak in the meantime.
 
 User authenticates with the "authorization code flow" to the portal application from where he can choose verifiable credential.
 Once user clicks on the credential, he is redirected to Keycloak, from where he eventually needs to re-authenticate and then the page
@@ -236,6 +252,8 @@ and paste the credential offer from your clipboard (It would be value similar to
 5) Repeat steps 5, 6, 7 from previous demo (Wallet initiated flow demo) and observe new credential for user `john`
 
 #### Flow with pre-authorized grant and offer created by sending request to custom REST endpoint
+
+NOTE: This is temporarily disabled. It does not work as it supports some pieces in Keycloak, which are experimental and were changed in the Keycloak in the meantime.
 
 1) Pre-authorized code obtained by "administrator" sending request to the REST endpoint, which creates credential-offer for target user. 
 

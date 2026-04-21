@@ -14,10 +14,11 @@ public class OID4VCIContext {
 
     // Obtained from config
     private String selectedCredentialId = "";
+    private boolean preAuthorized;
     private String claimsToPresent;
     private String preauthzClientId;
     private String preauthzUsername;
-    private String preauthzOffer;
+    private String configuredCredentialOffer;
 
     // Obtained from requests
     private CredentialIssuer credentialIssuerMetadata;
@@ -33,6 +34,14 @@ public class OID4VCIContext {
 
     public void setSelectedCredentialId(String selectedCredentialId) {
         this.selectedCredentialId = selectedCredentialId;
+    }
+
+    public boolean isPreAuthorized() {
+        return preAuthorized;
+    }
+
+    public void setPreAuthorized(boolean preAuthorized) {
+        this.preAuthorized = preAuthorized;
     }
 
     public String getClaimsToPresent() {
@@ -59,12 +68,12 @@ public class OID4VCIContext {
         this.preauthzUsername = preauthzUsername;
     }
 
-    public String getPreauthzOffer() {
-        return preauthzOffer;
+    public String getConfiguredCredentialOffer() {
+        return configuredCredentialOffer;
     }
 
-    public void setPreauthzOffer(String preauthzOffer) {
-        this.preauthzOffer = preauthzOffer;
+    public void setConfiguredCredentialOffer(String configuredCredentialOffer) {
+        this.configuredCredentialOffer = configuredCredentialOffer;
     }
 
     public List<OID4VCCredential> getAvailableCredentials() {
@@ -125,6 +134,7 @@ public class OID4VCIContext {
 
     public void cleanup() {
         credentialOfferURI = null;
+        preAuthorized = false;
         credentialsOffer = null;
         authzDetails = null;
         credentialResponse = null;
@@ -134,7 +144,7 @@ public class OID4VCIContext {
         claimsToPresent = null;
         preauthzClientId = null;
         preauthzUsername = null;
-        preauthzOffer = null;
+        configuredCredentialOffer = null;
     }
 
     public static class OID4VCCredential {
