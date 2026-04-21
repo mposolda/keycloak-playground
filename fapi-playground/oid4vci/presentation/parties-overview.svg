@@ -1,0 +1,70 @@
+<svg width="100%" viewBox="0 0 760 250" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Arrowhead markers -->
+    <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0, 8 3.5, 0 7" fill="#1e40af"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0, 8 3.5, 0 7" fill="#059669"/>
+    </marker>
+    <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0, 8 3.5, 0 7" fill="#7c3aed"/>
+    </marker>
+    <marker id="arrow-dark" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0, 8 3.5, 0 7" fill="#1f2328"/>
+    </marker>
+  </defs>
+
+  <style>
+    text { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; }
+    .node-title { font-size: 13px; font-weight: 700; }
+    .node-sub { font-size: 11px; }
+    .edge-label { font-size: 11px; font-weight: 600; }
+    .edge-sub { font-size: 10px; fill: #57606a; }
+  </style>
+
+  <!-- Flow 3: Wallet -> Verifier (Presentation) curved top arch -->
+  <path d="M 110 40 C 110 5, 650 5, 650 32" fill="none" stroke="#1f2328" stroke-width="1.5" marker-end="url(#arrow-dark)"/>
+  <text x="380" y="16" text-anchor="middle" class="edge-label" fill="#1f2328">SD-JWT Presentation (Disclosures + Key-Binding JWT)</text>
+
+  <!-- Node: Wallet -->
+  <rect x="30" y="40" width="160" height="75" rx="6" fill="#dbeafe" stroke="#3b82d4" stroke-width="1.5"/>
+  <text x="110" y="66" text-anchor="middle" class="node-title" fill="#1e40af">Wallet</text>
+  <text x="110" y="84" text-anchor="middle" class="node-sub" fill="#1e40af">(proof-key owner)</text>
+  <text x="110" y="100" text-anchor="middle" class="node-sub" fill="#1e40af">sends credential request</text>
+
+  <!-- Node: Issuer (Keycloak) -->
+  <rect x="300" y="40" width="160" height="75" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.5"/>
+  <text x="380" y="66" text-anchor="middle" class="node-title" fill="#065f46">Issuer (Keycloak)</text>
+  <text x="380" y="84" text-anchor="middle" class="node-sub" fill="#065f46">validates proof / attestation</text>
+  <text x="380" y="100" text-anchor="middle" class="node-sub" fill="#065f46">issues &amp; signs SD-JWT VC</text>
+
+  <!-- Node: Verifier -->
+  <rect x="570" y="40" width="160" height="75" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="650" y="66" text-anchor="middle" class="node-title" fill="#92400e">Verifier</text>
+  <text x="650" y="84" text-anchor="middle" class="node-sub" fill="#92400e">verifies Issuer signature</text>
+  <text x="650" y="100" text-anchor="middle" class="node-sub" fill="#92400e">+ holder key binding</text>
+
+  <!-- Node: Attester (Part 3 only) -->
+  <rect x="165" y="170" width="430" height="65" rx="6" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="380" y="196" text-anchor="middle" class="node-title" fill="#5b21b6">Attester (Part 3 only)</text>
+  <text x="380" y="214" text-anchor="middle" class="node-sub" fill="#5b21b6">trusted by Issuer (Trusted Key IDP) · attests that Wallet proof key is in secure enclave</text>
+
+  <!-- Flow 1: Wallet -> Issuer (Credential Request) -->
+  <path d="M 190 65 L 292 65" stroke="#1e40af" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <text x="245" y="58" text-anchor="middle" class="edge-label" fill="#1e40af">Cred. Request</text>
+
+  <!-- Flow 2: Issuer -> Wallet (SD-JWT VC) -->
+  <path d="M 300 90 L 198 90" stroke="#059669" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+  <text x="245" y="105" text-anchor="middle" class="edge-label" fill="#065f46">SD-JWT VC</text>
+
+  <!-- Flow 4: Attester <-> Wallet (Part 3) -->
+  <path d="M 110 115 L 110 202 L 157 202" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-purple)"/>
+  <text x="100" y="150" text-anchor="end" class="edge-label" fill="#5b21b6">attestation</text>
+  <text x="100" y="164" text-anchor="end" class="edge-sub">exchange</text>
+
+  <!-- Flow 5: Attester -> Issuer Trust relationship (Part 3) -->
+  <path d="M 500 170 L 500 130 L 440 130 L 440 123" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-purple)"/>
+  <text x="508" y="150" text-anchor="start" class="edge-label" fill="#5b21b6">trusted key</text>
+  <text x="508" y="162" text-anchor="start" class="edge-sub">registration</text>
+</svg>

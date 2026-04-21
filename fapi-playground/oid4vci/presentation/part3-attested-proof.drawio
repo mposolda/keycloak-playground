@@ -1,0 +1,177 @@
+<mxfile host="app.diagrams.net" modified="2024-01-01T00:00:00.000Z" agent="Bob" version="21.0.0" type="device">
+  <diagram id="part3-attested-proof" name="Part 3 – Attested Proof">
+    <mxGraphModel dx="1422" dy="762" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- ══════════════════════════════════════════
+             PARTY BOXES  (SVG coords scaled)
+             SVG viewBox 760 wide, 4 parties.
+             Centres in SVG: Wallet=75, Attester=260, Issuer=475, Verifier=685
+             Scale factor ×2 → 150, 520, 950, 1370
+             Box widths: Wallet=130→260, Attester=130→260, Issuer=140→280, Verifier=130→260
+             Box x: Wallet=10→20, Attester=195→390, Issuer=405→810, Verifier=620→1240
+        ════════════════════════════════════════════ -->
+
+        <!-- Wallet box -->
+        <mxCell id="wallet" value="&lt;b&gt;Wallet&lt;/b&gt;&lt;br&gt;proof key pair&lt;br&gt;in secure enclave"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;arcSize=5;fontSize=15;"
+                vertex="1" parent="1">
+          <mxGeometry x="20" y="40" width="260" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Attester box -->
+        <mxCell id="attester" value="&lt;b&gt;Attester&lt;/b&gt;&lt;br&gt;attestation key pair&lt;br&gt;trusted by Issuer"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;arcSize=5;fontSize=15;"
+                vertex="1" parent="1">
+          <mxGeometry x="390" y="40" width="260" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Issuer box -->
+        <mxCell id="issuer" value="&lt;b&gt;Issuer (Keycloak)&lt;/b&gt;&lt;br&gt;Trusted Key IDP&lt;br&gt;validates attestation"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;arcSize=5;fontSize=15;"
+                vertex="1" parent="1">
+          <mxGeometry x="810" y="40" width="280" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Verifier box -->
+        <mxCell id="verifier" value="&lt;b&gt;Verifier&lt;/b&gt;&lt;br&gt;verifies issuer sig&lt;br&gt;+ key binding"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;arcSize=5;fontSize=15;"
+                vertex="1" parent="1">
+          <mxGeometry x="1240" y="40" width="260" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════
+             LIFELINES  (dashed vertical lines)
+             Centres: Wallet=150, Attester=520, Issuer=950, Verifier=1370
+             SVG y1=80→160, y2=330→660
+        ════════════════════════════════════════════ -->
+
+        <!-- Wallet lifeline -->
+        <mxCell id="lifeline-wallet" value=""
+                style="endArrow=none;dashed=1;dashPattern=8 8;strokeColor=#666666;strokeWidth=1.5;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="150" y="160" as="sourcePoint"/>
+            <mxPoint x="150" y="660" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Attester lifeline -->
+        <mxCell id="lifeline-attester" value=""
+                style="endArrow=none;dashed=1;dashPattern=8 8;strokeColor=#666666;strokeWidth=1.5;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="520" y="160" as="sourcePoint"/>
+            <mxPoint x="520" y="660" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Issuer lifeline -->
+        <mxCell id="lifeline-issuer" value=""
+                style="endArrow=none;dashed=1;dashPattern=8 8;strokeColor=#666666;strokeWidth=1.5;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="950" y="160" as="sourcePoint"/>
+            <mxPoint x="950" y="660" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Verifier lifeline -->
+        <mxCell id="lifeline-verifier" value=""
+                style="endArrow=none;dashed=1;dashPattern=8 8;strokeColor=#666666;strokeWidth=1.5;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1370" y="160" as="sourcePoint"/>
+            <mxPoint x="1370" y="660" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════
+             MESSAGES  (SVG y × 2)
+             ① y=108→216   Wallet → Attester
+             ② y=144→288   Attester → Wallet
+             ③ y=186→372   Wallet → Issuer
+             ④ y=210→420   Issuer self-loop
+             ⑤ y=250→500   Issuer → Wallet
+             ⑥ y=284→568   Wallet → Verifier
+        ════════════════════════════════════════════ -->
+
+        <!-- Message ①: Wallet → Attester  (Send public proof key) -->
+        <mxCell id="msg1" value="① Send public proof key"
+                style="endArrow=block;endFill=1;strokeColor=#000000;strokeWidth=1.5;fontSize=15;align=center;verticalAlign=bottom;labelBackgroundColor=none;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="150" y="216" as="sourcePoint"/>
+            <mxPoint x="520" y="216" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message ②: Attester → Wallet  (Key-attestation JWT) -->
+        <mxCell id="msg2" value="② Key-attestation JWT&#xa;(wraps proof key, signed by Attester)"
+                style="endArrow=block;endFill=1;strokeColor=#000000;strokeWidth=1.5;fontSize=15;align=center;verticalAlign=bottom;labelBackgroundColor=none;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="520" y="288" as="sourcePoint"/>
+            <mxPoint x="150" y="288" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message ③: Wallet → Issuer  (Credential Request with attested proof) -->
+        <mxCell id="msg3" value="③ Credential Request (proofs with attestation)&#xa;proofs.attestation (or proof JWT + key_attestation header)"
+                style="endArrow=block;endFill=1;strokeColor=#000000;strokeWidth=1.5;fontSize=15;align=center;verticalAlign=bottom;labelBackgroundColor=none;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="150" y="372" as="sourcePoint"/>
+            <mxPoint x="950" y="372" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message ④: Issuer self-loop  (Verify attestation sig) -->
+        <mxCell id="msg4" value="④ Verify attestation sig&#xa;against Trusted Key IDP"
+                style="endArrow=block;endFill=1;strokeColor=#000000;strokeWidth=1.5;fontSize=15;align=left;verticalAlign=middle;labelBackgroundColor=none;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;"
+                edge="1" parent="1" source="issuer" target="issuer">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1130" y="100"/>
+              <mxPoint x="1130" y="100"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message ⑤: Issuer → Wallet  (SD-JWT VC) -->
+        <mxCell id="msg5" value="⑤ SD-JWT VC&#xa;(cnf claim contains proof public key)"
+                style="endArrow=block;endFill=1;strokeColor=#000000;strokeWidth=1.5;fontSize=15;align=center;verticalAlign=bottom;labelBackgroundColor=none;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="950" y="500" as="sourcePoint"/>
+            <mxPoint x="150" y="500" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message ⑥: Wallet → Verifier  (SD-JWT Presentation + Key-Binding JWT) -->
+        <mxCell id="msg6" value="⑥ SD-JWT Presentation + Key-Binding JWT&#xa;&lt;issuer-jwt&gt; ~ &lt;disclosures&gt; ~ &lt;key-binding-jwt&gt;"
+                style="endArrow=block;endFill=1;strokeColor=#000000;strokeWidth=1.5;fontSize=15;align=center;verticalAlign=bottom;labelBackgroundColor=none;html=1;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="150" y="568" as="sourcePoint"/>
+            <mxPoint x="1370" y="568" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════
+             NOTE BOX under Verifier
+             SVG: x=560→1120, y=306→612, w=195→390, h=48→96
+        ════════════════════════════════════════════ -->
+
+        <mxCell id="note" value="⑦ Issuer sig ✓  Holder binding ✓&#xa;(Attestation verified by Issuer at issuance)"
+                style="rounded=1;whiteSpace=wrap;html=0;fillColor=#f8f8f8;strokeColor=#000000;strokeWidth=1;fontSize=15;fontColor=#000000;arcSize=3;"
+                vertex="1" parent="1">
+          <mxGeometry x="1120" y="604" width="500" height="90" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

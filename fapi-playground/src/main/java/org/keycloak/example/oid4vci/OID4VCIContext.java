@@ -1,8 +1,10 @@
 package org.keycloak.example.oid4vci;
 
 import org.jboss.logging.Logger;
+import org.keycloak.crypto.KeyWrapper;
 import org.keycloak.protocol.oid4vc.model.*;
 
+import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.List;
 
@@ -14,10 +16,23 @@ public class OID4VCIContext {
 
     // Obtained from config
     private String selectedCredentialId = "";
+    private boolean preAuthorized;
     private String claimsToPresent;
     private String preauthzClientId;
     private String preauthzUsername;
-    private String preauthzOffer;
+    private String configuredCredentialOffer;
+    private String proofType = "none";
+    private boolean useAttestationForJwtProof;
+
+    // Attestation key (generated on demand, persisted across credential requests)
+    private KeyWrapper attestationKey;
+
+    // Attestation certificate chain: [0] = leaf attestation cert, [1] = root CA cert
+    // Only set when 'Generate attestation certificates' was used; null otherwise.
+    private List<X509Certificate> attestationCertChain;
+
+    // Proof key (generated on demand, in-memory only – not persisted, but survives cleanup/logout)
+    private KeyWrapper proofKey;
 
     // Obtained from requests
     private CredentialIssuer credentialIssuerMetadata;
@@ -25,7 +40,6 @@ public class OID4VCIContext {
     private CredentialsOffer credentialsOffer;
     private OID4VCAuthorizationDetail authzDetails;
     private CredentialResponse credentialResponse;
-    private String accessToken;
 
     public String getSelectedCredentialId() {
         return selectedCredentialId;
@@ -33,6 +47,14 @@ public class OID4VCIContext {
 
     public void setSelectedCredentialId(String selectedCredentialId) {
         this.selectedCredentialId = selectedCredentialId;
+    }
+
+    public boolean isPreAuthorized() {
+        return preAuthorized;
+    }
+
+    public void setPreAuthorized(boolean preAuthorized) {
+        this.preAuthorized = preAuthorized;
     }
 
     public String getClaimsToPresent() {
@@ -51,6 +73,46 @@ public class OID4VCIContext {
         this.preauthzClientId = preauthzClientId;
     }
 
+    public String getProofType() {
+        return proofType;
+    }
+
+    public void setProofType(String proofType) {
+        this.proofType = proofType;
+    }
+
+    public boolean isUseAttestationForJwtProof() {
+        return useAttestationForJwtProof;
+    }
+
+    public void setUseAttestationForJwtProof(boolean useAttestationForJwtProof) {
+        this.useAttestationForJwtProof = useAttestationForJwtProof;
+    }
+
+    public KeyWrapper getAttestationKey() {
+        return attestationKey;
+    }
+
+    public void setAttestationKey(KeyWrapper attestationKey) {
+        this.attestationKey = attestationKey;
+    }
+
+    public List<X509Certificate> getAttestationCertChain() {
+        return attestationCertChain;
+    }
+
+    public void setAttestationCertChain(List<X509Certificate> attestationCertChain) {
+        this.attestationCertChain = attestationCertChain;
+    }
+
+    public KeyWrapper getProofKey() {
+        return proofKey;
+    }
+
+    public void setProofKey(KeyWrapper proofKey) {
+        this.proofKey = proofKey;
+    }
+
     public String getPreauthzUsername() {
         return preauthzUsername;
     }
@@ -59,12 +121,12 @@ public class OID4VCIContext {
         this.preauthzUsername = preauthzUsername;
     }
 
-    public String getPreauthzOffer() {
-        return preauthzOffer;
+    public String getConfiguredCredentialOffer() {
+        return configuredCredentialOffer;
     }
 
-    public void setPreauthzOffer(String preauthzOffer) {
-        this.preauthzOffer = preauthzOffer;
+    public void setConfiguredCredentialOffer(String configuredCredentialOffer) {
+        this.configuredCredentialOffer = configuredCredentialOffer;
     }
 
     public List<OID4VCCredential> getAvailableCredentials() {
@@ -115,26 +177,22 @@ public class OID4VCIContext {
         this.credentialResponse = credentialResponse;
     }
 
-    public String getAccessToken() {
-        return accessToken;
-    }
-
-    public void setAccessToken(String accessToken) {
-        this.accessToken = accessToken;
-    }
-
     public void cleanup() {
         credentialOfferURI = null;
+        preAuthorized = false;
         credentialsOffer = null;
         authzDetails = null;
         credentialResponse = null;
-        accessToken = null;
 
         // Cleanup also some config
         claimsToPresent = null;
         preauthzClientId = null;
         preauthzUsername = null;
-        preauthzOffer = null;
+        configuredCredentialOffer = null;
+        proofType = "none";
+        useAttestationForJwtProof = false;
+        attestationKey = null;
+        attestationCertChain = null;
     }
 
     public static class OID4VCCredential {

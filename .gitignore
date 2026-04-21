@@ -73,3 +73,9 @@ target
 # testsuite #
 #############
 *offline-token.txt
+
+# Data #
+########
+fapi-playground/data/
+fapi-playground/.ai/
+

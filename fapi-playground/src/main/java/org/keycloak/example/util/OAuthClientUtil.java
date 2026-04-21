@@ -10,6 +10,8 @@ import java.util.stream.Stream;
 
 import org.apache.http.NameValuePair;
 import org.apache.http.client.methods.HttpGet;
+import org.keycloak.example.Services;
+import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.testsuite.util.oauth.AbstractHttpGetRequest;
 import org.keycloak.testsuite.util.oauth.AbstractHttpPostRequest;
 
@@ -19,6 +21,15 @@ import org.keycloak.testsuite.util.oauth.AbstractHttpPostRequest;
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
  */
 public class OAuthClientUtil {
+
+    public static void setupOAuthClient(SessionData session, String clientId, String clientSecret) {
+        OAuthClient oauthClient = Services.instance().getOauthClient();
+        if (OIDCLoginProtocol.CLIENT_SECRET_BASIC.equals(session.getClientConfigContext().getClientAuthMethod())) {
+            oauthClient.client(clientId, clientSecret);
+        } else {
+            oauthClient.client(clientId);
+        }
+    }
 
     public static Map<String, Object> getRequestInfo(AbstractHttpPostRequest postRequest) {
         Map<String, Object> request = new HashMap<>();

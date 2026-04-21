@@ -1,0 +1,122 @@
+<mxfile host="app.diagrams.net" modified="2024-01-01T00:00:00.000Z" agent="Bob" version="21.0.0" type="device">
+  <diagram id="part1-no-proof" name="Part 1 – No Proof">
+    <mxGraphModel dx="1422" dy="762" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- ══════════════════════════════════════════
+             PARTY BOXES  (SVG coords × 2)
+             Wallet  : x=25→50,  y=20→40,  w=150→300, h=60→120
+             Issuer  : x=305→610, y=20→40, w=150→300, h=60→120
+             Verifier: x=585→1170,y=20→40, w=150→300, h=60→120
+        ════════════════════════════════════════════ -->
+
+        <!-- Wallet box -->
+        <mxCell id="wallet" value="&lt;b&gt;Wallet&lt;/b&gt;&lt;br&gt;no proof key generated"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;arcSize=5;fontSize=15;"
+                vertex="1" parent="1">
+          <mxGeometry x="50" y="40" width="300" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Issuer box -->
+        <mxCell id="issuer" value="&lt;b&gt;Issuer&lt;/b&gt;&lt;br&gt;(Keycloak)"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;arcSize=5;fontSize=15;"
+                vertex="1" parent="1">
+          <mxGeometry x="610" y="40" width="300" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Verifier box -->
+        <mxCell id="verifier" value="&lt;b&gt;Verifier&lt;/b&gt;&lt;br&gt;relying party"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;arcSize=5;fontSize=15;"
+                vertex="1" parent="1">
+          <mxGeometry x="1170" y="40" width="300" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════
+             LIFELINES  (dashed vertical lines)
+             Centre of each box: Wallet=200, Issuer=760, Verifier=1320
+             SVG y1=80→160, y2=245→490  (×2)
+        ════════════════════════════════════════════ -->
+
+        <!-- Wallet lifeline -->
+        <mxCell id="lifeline-wallet" value=""
+                style="endArrow=none;dashed=1;dashPattern=8 8;strokeColor=#666666;strokeWidth=1.5;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"/>
+            <mxPoint x="200" y="160" as="sourcePoint"/>
+            <mxPoint x="200" y="490" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Issuer lifeline -->
+        <mxCell id="lifeline-issuer" value=""
+                style="endArrow=none;dashed=1;dashPattern=8 8;strokeColor=#666666;strokeWidth=1.5;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="760" y="160" as="sourcePoint"/>
+            <mxPoint x="760" y="490" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Verifier lifeline -->
+        <mxCell id="lifeline-verifier" value=""
+                style="endArrow=none;dashed=1;dashPattern=8 8;strokeColor=#666666;strokeWidth=1.5;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1320" y="160" as="sourcePoint"/>
+            <mxPoint x="1320" y="490" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════
+             MESSAGES
+             SVG y=110→220, y=155→310, y=200→400  (×2)
+        ════════════════════════════════════════════ -->
+
+        <!-- Message 1: Wallet → Issuer  (① Credential Request) -->
+        <mxCell id="msg1" value="&lt;b&gt;① Credential Request&lt;/b&gt;&lt;br&gt;(no proofs field)"
+                style="endArrow=block;endFill=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;strokeWidth=1.5;fontSize=11;align=center;verticalAlign=bottom;labelBackgroundColor=none;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="200" y="220" as="sourcePoint"/>
+            <mxPoint x="760" y="220" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 2: Issuer → Wallet  (② SD-JWT VC) -->
+        <mxCell id="msg2" value="&lt;b&gt;② SD-JWT VC&lt;/b&gt;&lt;br&gt;(no cnf claim — bearer VC)"
+                style="endArrow=block;endFill=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;strokeWidth=1.5;fontSize=11;align=center;verticalAlign=bottom;labelBackgroundColor=none;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="760" y="310" as="sourcePoint"/>
+            <mxPoint x="200" y="310" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 3: Wallet → Verifier  (③ SD-JWT Presentation) -->
+        <mxCell id="msg3" value="&lt;b&gt;③ SD-JWT Presentation&lt;/b&gt;&lt;br&gt;(ends with ~, no Key-Binding JWT)"
+                style="endArrow=block;endFill=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;strokeWidth=1.5;fontSize=11;align=center;verticalAlign=bottom;labelBackgroundColor=none;"
+                edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="200" y="400" as="sourcePoint"/>
+            <mxPoint x="1320" y="400" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════
+             NOTE BOX under Verifier
+             SVG: x=555→1110, y=228→456, w=195→390, h=42→84
+        ════════════════════════════════════════════ -->
+
+        <mxCell id="note" value="&lt;b&gt;④ Issuer signature verified ✓&lt;/b&gt;&lt;br&gt;No holder binding possible ✗"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#000000;strokeWidth=1;fontSize=11;fontColor=#000000;arcSize=3;"
+                vertex="1" parent="1">
+          <mxGeometry x="1110" y="456" width="420" height="84" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

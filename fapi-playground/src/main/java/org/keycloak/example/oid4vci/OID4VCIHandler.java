@@ -2,21 +2,31 @@ package org.keycloak.example.oid4vci;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.jboss.logging.Logger;
 import org.keycloak.OAuth2Constants;
+import org.keycloak.OID4VCConstants;
 import org.keycloak.VCFormat;
+import org.keycloak.common.util.PemUtils;
+import org.keycloak.common.util.Time;
+import org.keycloak.crypto.ECDSASignatureSignerContext;
+import org.keycloak.crypto.KeyWrapper;
 import org.keycloak.example.Services;
 import org.keycloak.example.bean.InfoBean;
 import org.keycloak.example.handlers.ActionHandler;
 import org.keycloak.example.handlers.ActionHandlerContext;
 import org.keycloak.example.util.*;
+import org.keycloak.jose.jwk.JWK;
+import org.keycloak.jose.jwk.JWKBuilder;
 import org.keycloak.jose.jws.JWSHeader;
 import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.jose.jws.JWSInputException;
 import org.keycloak.protocol.oid4vc.issuance.OID4VCAuthorizationDetailsParser;
-import org.keycloak.protocol.oid4vc.issuance.requiredactions.VerifiableCredentialOfferAction;
 import org.keycloak.protocol.oid4vc.model.*;
 import org.keycloak.representations.IDToken;
+import org.keycloak.representations.idm.oid4vc.VerifiableCredentialOfferActionConfig;
+import org.keycloak.sdjwt.vp.KeyBindingJWT;
 import org.keycloak.sdjwt.vp.SdJwtVP;
 import org.keycloak.testsuite.util.oauth.AbstractHttpPostRequest;
 import org.keycloak.testsuite.util.oauth.AccessTokenResponse;
@@ -30,7 +40,10 @@ import java.io.IOException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -51,16 +64,19 @@ public class OID4VCIHandler implements ActionHandler {
 
     @Override
     public Map<String, Function<ActionHandlerContext, InfoBean>> getActions() {
-        return Map.of(
-                "oid4vci-wellknown-endpoint", this::handleOID4VCIWellKnownEndpointAction,
-                "oid4vci-authz-code-flow", this::handleAuthzCodeFlow,
-                "oid4vci-pre-authz-code-flow", this::handleCreateCredentialOfferAction,
-                "oid4vci-aia", this::handleAIAFlow,
-                "oid4vci-pre-authz-code-with-offer", this::handlePreAuthzFlowWithOffer,
-                "oid4vci-credential-request", this::credentialRequest,
-                "oid4vci-last-credential-response", this::getLastCredentialResponse,
-                "oid4vci-create-presentation", this::createPresentation
-        );
+        Map<String, Function<ActionHandlerContext, InfoBean>> actions = new java.util.HashMap<>();
+        actions.put("oid4vci-wellknown-endpoint", this::handleOID4VCIWellKnownEndpointAction);
+        actions.put("oid4vci-authz-code-flow", this::handleAuthzCodeFlow);
+        actions.put("oid4vci-pre-authz-code-flow", this::handleCreateCredentialOfferAction);
+        actions.put("oid4vci-aia", this::handleAIAFlow);
+        actions.put("oid4vci-pre-authz-code-with-offer", this::handlePreAuthzFlowWithOffer);
+        actions.put("oid4vci-credential-request", this::credentialRequest);
+        actions.put("oid4vci-last-credential-response", this::getLastCredentialResponse);
+        actions.put("oid4vci-create-presentation", this::createPresentation);
+        actions.put("oid4vci-generate-attestation-key", this::generateAttestationKey);
+        actions.put("oid4vci-generate-attestation-certificates", this::generateAttestationCertificates);
+        actions.put("oid4vci-generate-proof-key", this::generateProofKey);
+        return actions;
     }
 
     @Override
@@ -80,8 +96,6 @@ public class OID4VCIHandler implements ActionHandler {
         }
         OID4VCIContext oid4vciCtx = session.getOrCreateOID4VCIContext();
         oid4vciCtx.setAuthzDetails(authzDetails.get(0));
-
-        oid4vciCtx.setAccessToken(accessTokenResponse.getAccessToken());
     }
 
     @Override
@@ -111,11 +125,13 @@ public class OID4VCIHandler implements ActionHandler {
     }
 
     private InfoBean handleAuthzCodeFlow(ActionHandlerContext actionContext) {
-        log.infof("handleAuthzCodeFlow");
         SessionData session = actionContext.getSession();
 
         OID4VCIContext oid4VCIContext = session.getOrCreateOID4VCIContext();
         collectOID4VCIConfigParams(actionContext.getParams(), oid4VCIContext);
+
+        String configuredCredentialOfferURI = oid4VCIContext.getConfiguredCredentialOffer();
+        log.infof("handle authorization code flow. Credential offer from the config: %s", configuredCredentialOfferURI);
 
         if (oid4VCIContext.getCredentialIssuerMetadata() == null) {
             return new InfoBean("No credential issuer metadata", "Please first obtain OID4VCI credential issuer metadata from OID4VCI well-known endpoint");
@@ -129,26 +145,50 @@ public class OID4VCIHandler implements ActionHandler {
         SupportedCredentialConfiguration supportedCredConfig = credIssuerMetadata.getCredentialsSupported().get(oid4VCIContext.getSelectedCredentialId());
         String scope = supportedCredConfig.getScope();
 
-        String origLoginUrl = LoginUtil.getAuthorizationRequestUrl(session.getOidcConfigContext(), actionContext.getUriInfo(), scope).build();
+        InfoBean info = new InfoBean();
 
-        /// Add authorization_details to it
-        List<OID4VCAuthorizationDetail> authzDetails = getAuthorizationDetailsForAuthzCodeFlow(credIssuerMetadata, oid4VCIContext.getSelectedCredentialId());
         try {
+            LoginUrlBuilder loginUrlBuilder = LoginUtil.getAuthorizationRequestUrl(session.getOidcConfigContext(), actionContext.getUriInfo(), scope);
+
+            // The field "Credential offer" was configured
+            if (StringUtil.isNotBlank(configuredCredentialOfferURI)) {
+                CredentialOfferURI credentialOfferUri = getCredentialOfferUri(configuredCredentialOfferURI);
+                if (credentialOfferUri == null) {
+                    return new InfoBean("No credential offer", "Was not able to parse credential offer from the provided Credential offer: " + configuredCredentialOfferURI);
+                }
+                log.infof("Calling uri '%s' to retrive credential offer", credentialOfferUri.getCredentialOfferUri());
+
+                WebRequestContext<CredentialOfferRequest, CredentialOfferResponse> credentialOffer = invokeCredentialOfferURI(credentialOfferUri);
+                oid4VCIContext.setCredentialsOffer(credentialOffer.getResponse().getCredentialsOffer());
+
+                String issuerState = credentialOffer.getResponse().getCredentialsOffer().getIssuerState();
+                loginUrlBuilder.issuerState(issuerState);
+
+                info.addOutput("Credential Offer request", JsonSerialization.writeValueAsPrettyString(OAuthClientUtil.getRequestInfo(credentialOffer.getRequest())));
+                info.addOutput("Credential Offer response", JsonSerialization.writeValueAsPrettyString(credentialOffer.getResponse()));
+            }
+
+            String origLoginUrl = loginUrlBuilder.build();
+
+            /// Add authorization_details to it
+            List<OID4VCAuthorizationDetail> authzDetails = getAuthorizationDetailsForAuthzCodeFlow(credIssuerMetadata, oid4VCIContext.getSelectedCredentialId());
+
             String authzDetailsStr = JsonSerialization.writeValueAsString(authzDetails);
 
             String loginUrl = origLoginUrl + "&" + OAuth2Constants.AUTHORIZATION_DETAILS + "=" + URLEncoder.encode(authzDetailsStr, StandardCharsets.UTF_8);
 
             actionContext.getFmAttributes().put(Constants.AUTH_REQUEST_URL, loginUrl);
-                return new InfoBean(
-                        "Authorization details for OIDC authentication request", JsonSerialization.writeValueAsPrettyString(authzDetails),
-                        "OIDC Authentication Request URL", loginUrl);
+
+            info.addOutput("Authorization details for OIDC authentication request", JsonSerialization.writeValueAsPrettyString(authzDetails));
+            info.addOutput("OIDC Authentication Request URL", loginUrl);
+            return info;
         } catch (IOException ioe) {
             throw new MyException("I/O exception when encode/decode authz details", ioe);
         }
     }
 
     private List<OID4VCAuthorizationDetail> getAuthorizationDetailsForAuthzCodeFlow(CredentialIssuer credIssuerMetadata, String selectedCredentialConfigId) {
-        List<String> expectedMandatoryClaims = "education-certificate-config-id".equals(selectedCredentialConfigId) ? List.of("university", "education-certificate-number")
+        List<String> expectedMandatoryClaims = "education-certificate-config-id".equals(selectedCredentialConfigId) || "education-certificate".equals(selectedCredentialConfigId) ? List.of("university", "education-certificate-number")
                 : Collections.emptyList(); // TODO: Maybe update these to not be hardcoded this way...
 
         SupportedCredentialConfiguration supportedCredConfig = credIssuerMetadata.getCredentialsSupported().get(selectedCredentialConfigId);
@@ -233,7 +273,7 @@ public class OID4VCIHandler implements ActionHandler {
         OID4VCIContext oid4VCIContext = session.getOrCreateOID4VCIContext();
         collectOID4VCIConfigParams(actionContext.getParams(), oid4VCIContext);
 
-        String credentialOfferFullUri = oid4VCIContext.getPreauthzOffer();
+        String credentialOfferFullUri = oid4VCIContext.getConfiguredCredentialOffer();
         if (StringUtil.isBlank(credentialOfferFullUri)) {
             return new InfoBean("No credential offer", "Need to provide parameter: Credential offer (for pre-authorized grant with offer)");
         }
@@ -292,17 +332,23 @@ public class OID4VCIHandler implements ActionHandler {
 
     private void collectOID4VCIConfigParams(Map<String, String> params, OID4VCIContext oid4vciCtx) {
         String oid4vciCredential = params.get("oid4vci-credential");
+        boolean preAuthorized = params.get("oid4vci-pre-authorized") != null;
         String claimsToPresent = params.get("oid4ci-claims-to-present");
         String preauthzClientId = params.get("oid4ci-preauthz-client_id");
         String preauthzUsername = params.get("oid4ci-preauthz-username");
         String preauthzOffer = params.get("oid4ci-preauthz-offer");
-        log.infof("Selected oid4vciCredential: %s, claimsToPresent: %s, pre-authz clientId: %s, pre-authz username: %s, pre-authz offer: %s",
-                oid4vciCredential, claimsToPresent, preauthzClientId, preauthzUsername, preauthzOffer);
+        String proofType = params.getOrDefault("oid4vci-proof-type", "none");
+        boolean useAttestationForJwtProof = params.get("oid4vci-jwt-use-attestation") != null;
+        log.infof("Selected oid4vciCredential: %s, preAuthorized: %s, claimsToPresent: %s, pre-authz clientId: %s, pre-authz username: %s, pre-authz offer: %s, proofType: %s, useAttestationForJwtProof: %s",
+                oid4vciCredential, preAuthorized, claimsToPresent, preauthzClientId, preauthzUsername, preauthzOffer, proofType, useAttestationForJwtProof);
         oid4vciCtx.setSelectedCredentialId(oid4vciCredential);
+        oid4vciCtx.setPreAuthorized(preAuthorized);
         oid4vciCtx.setClaimsToPresent(claimsToPresent);
         oid4vciCtx.setPreauthzClientId(preauthzClientId);
         oid4vciCtx.setPreauthzUsername(preauthzUsername);
-        oid4vciCtx.setPreauthzOffer(preauthzOffer);
+        oid4vciCtx.setConfiguredCredentialOffer(preauthzOffer);
+        oid4vciCtx.setProofType(proofType);
+        oid4vciCtx.setUseAttestationForJwtProof(useAttestationForJwtProof);
     }
 
     private List<OID4VCIContext.OID4VCCredential> getAvailableCredentials(CredentialIssuer credIssuer) {
@@ -383,8 +429,8 @@ public class OID4VCIHandler implements ActionHandler {
             OID4VCIContext oid4vciCtx = session.getOrCreateOID4VCIContext();
             oid4vciCtx.setAuthzDetails(authzDetails.get(0));
 
-            // Save last access_token
-            oid4vciCtx.setAccessToken(tokenResponse.getAccessToken());
+            // Save last access_token TODO: Should be done differently as accessToken is saved in the OIDC context
+            // oid4vciCtx.setAccessToken(tokenResponse.getAccessToken());
 
             return new WebRequestContext<>(preAuthzGrantRequest, tokenResponse);
         } catch (IOException ioe) {
@@ -392,29 +438,230 @@ public class OID4VCIHandler implements ActionHandler {
         }
     }
 
-    private static WebRequestContext<Oid4vcCredentialRequest, Oid4vcCredentialResponse> triggerCredentialRequest(OID4VCIContext oid4VCIContext) {
+    /**
+     * Carries data related to credential request and response (including used proofs, nonces etc)
+     */
+    private static class CredentialRequestFullContext {
+
+        WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> credentialRequestCtx;
+        Map<String, Object> nonceRequest;
+        String nonceResponse;
+        String proofType;
+        String proofJwt;
+
+        public void setCredentialRequestContext(WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> credentialRequestCtx) {
+            this.credentialRequestCtx = credentialRequestCtx;
+        }
+
+        public void setProofContext(Map<String, Object> nonceRequest, String nonceResponse, String proofType, String proofJwt) {
+            this.nonceRequest = nonceRequest;
+            this.nonceResponse = nonceResponse;
+            this.proofType = proofType;
+            this.proofJwt = proofJwt;
+        }
+
+    };
+
+
+    private static CredentialRequestFullContext triggerCredentialRequest(
+            OID4VCIContext oid4VCIContext, String accessToken) {
         OAuthClient oauth = Services.instance().getOauthClient();
         try {
             Oid4vcCredentialRequest credentialRequest = oauth.oid4vc().credentialRequest()
                     .credentialIdentifier(oid4VCIContext.getAuthzDetails().getCredentialIdentifiers().get(0))
-                    .bearerToken(oid4VCIContext.getAccessToken());
+                    .bearerToken(accessToken);
+
+            CredentialRequestFullContext result = new CredentialRequestFullContext();
+
+            String proofType = oid4VCIContext.getProofType();
+            if (proofType != null && !"none".equals(proofType)) {
+                Oid4vcNonceRequest nonceReq = oauth.oid4vc().nonceRequest();
+                Oid4vcNonceResponse nonceResp = nonceReq.send();
+                String cNonce = nonceResp.getNonce();
+
+                String credentialIssuer = oauth.oid4vc().issuerMetadataRequest().send().getMetadata().getCredentialIssuer();
+                Proofs proofs = ProofUtil.buildProofs(proofType, credentialIssuer, cNonce, oid4VCIContext.getProofKey(), oid4VCIContext.getAttestationKey(), oid4VCIContext.isUseAttestationForJwtProof());
+                credentialRequest.proofs(proofs);
+                log.infof("Attaching '%s' proof to credential request (c_nonce obtained from nonce endpoint, useAttestationForJwtProof: %s)", proofType, oid4VCIContext.isUseAttestationForJwtProof());
+
+                String proofJwt = extractProofJwt(proofType, proofs);
+                result.setProofContext(
+                        OAuthClientUtil.getRequestInfo(nonceReq),
+                        JsonSerialization.writeValueAsPrettyString(nonceResp.getNonceResponse()),
+                        proofType,
+                        proofJwt
+                );
+            }
+
             Oid4vcCredentialResponse credentialResponse = credentialRequest.send();
-            return new WebRequestContext<>(credentialRequest, credentialResponse);
+            MyOid4vcCredentialResponse credResponse = new MyOid4vcCredentialResponse(credentialResponse);
+            WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> credentialRequestCtx =  new WebRequestContext<>(credentialRequest, credResponse);
+            result.setCredentialRequestContext(credentialRequestCtx);
+            return result;
         } catch (Exception e) {
             throw new MyException("Failed to invoke credential request or parse credential response. Details: " + e.getMessage(), e);
         }
     }
 
+    /**
+     * Extract the raw JWT string from the {@link Proofs} based on proof type.
+     */
+    private static String extractProofJwt(String proofType, Proofs proofs) {
+        if (ProofType.JWT.equals(proofType) && proofs.getJwt() != null && !proofs.getJwt().isEmpty()) {
+            return proofs.getJwt().get(0);
+        } else if (ProofType.ATTESTATION.equals(proofType) && proofs.getAttestation() != null && !proofs.getAttestation().isEmpty()) {
+            return proofs.getAttestation().get(0);
+        }
+        return null;
+    }
+
+    /**
+     * Parse a JWT string and return a pretty-printed JSON of its decoded header.
+     */
+    private static String parseJwtHeader(String jwt) {
+        try {
+            JWSInput jwsInput = new JWSInput(jwt);
+            JWSHeader jwsHeader = jwsInput.getHeader();
+            return JsonSerialization.writeValueAsPrettyString(jwsHeader);
+        } catch (Exception e) {
+            return jwt; // fall back to raw if unparseable
+        }
+    }
+
+    /**
+     * Parse a JWT string and return a pretty-printed JSON of its decoded payload.
+     */
+    private static String parseJwtPayload(String jwt) {
+        try {
+            JWSInput jwsInput = new JWSInput(jwt);
+            JsonNode node = jwsInput.readJsonContent(JsonNode.class);
+            return JsonSerialization.writeValueAsPrettyString(node);
+        } catch (Exception e) {
+            return jwt; // fall back to raw if unparseable
+        }
+    }
+
+    private InfoBean generateProofKey(ActionHandlerContext actionContext) {
+        OID4VCIContext oid4vciCtx = actionContext.getSession().getOrCreateOID4VCIContext();
+        KeyWrapper newKey = ProofUtil.createEcKeyPair(false);
+        oid4vciCtx.setProofKey(newKey);
+
+        try {
+            JWK publicJwk = JWKBuilder.create().ec(newKey.getPublicKey());
+            publicJwk.setKeyId(newKey.getKid());
+            publicJwk.setAlgorithm(newKey.getAlgorithm());
+
+            Map<String, Object> jwksMap = Map.of("keys", List.of(publicJwk));
+            String jwksStr = JsonSerialization.writeValueAsPrettyString(jwksMap);
+            return new InfoBean(
+                    "Proof key generated",
+                    "A new EC (ES256) proof key has been generated and stored in memory. " +
+                    "This key is used to sign credential request proofs and key-binding JWTs in presentations.",
+                    "Proof key (public JWKS)",
+                    jwksStr);
+        } catch (IOException e) {
+            throw new MyException("Failed to serialize proof key to JWKS", e);
+        }
+    }
+
+    private InfoBean generateAttestationCertificates(ActionHandlerContext actionContext) {
+        OID4VCIContext oid4vciCtx = actionContext.getSession().getOrCreateOID4VCIContext();
+
+        try {
+            // 1. Generate root CA key pair + self-signed V3 CA certificate with BasicConstraints + KeyUsage
+            // DN order: DC first, CN second — consistent across both certificates
+            KeyWrapper rootCaKey = ProofUtil.createEcKeyPair(true);
+            KeyPair rootCaKeyPair = new KeyPair((java.security.PublicKey) rootCaKey.getPublicKey(), (java.security.PrivateKey) rootCaKey.getPrivateKey());
+            X509Certificate rootCaCert = ProofUtil.createSelfSignedCaCertificate(rootCaKeyPair, "DC=com,CN=my-root-attestation-ca");
+
+            // 2. Generate attestation (leaf) key pair + end-entity certificate signed by root CA
+            KeyWrapper attestationKey = ProofUtil.createEcKeyPair(true);
+            KeyPair attestationKeyPair = new KeyPair((java.security.PublicKey) attestationKey.getPublicKey(), (java.security.PrivateKey) attestationKey.getPrivateKey());
+            X509Certificate attestationCert = ProofUtil.createLeafCertificate(
+                    attestationKeyPair, "DC=com,CN=my-attestation-cert",
+                    rootCaCert, (java.security.PrivateKey) rootCaKey.getPrivateKey());
+
+            // 3. Store in context: cert chain = [leaf, root] (leaf first, as per x5c convention)
+            List<X509Certificate> certChain = List.of(attestationCert, rootCaCert);
+            attestationKey.setCertificate(attestationCert);
+            attestationKey.setCertificateChain(certChain);
+            oid4vciCtx.setAttestationKey(attestationKey);
+            oid4vciCtx.setAttestationCertChain(certChain);
+            PersistenceProvider.saveAttestationKey(oid4vciCtx);
+
+            // 4. Encode root CA cert as a proper PEM for display (needs to be trusted in Keycloak).
+            // PemUtils.encodeCertificate() returns bare Base64 without headers, so we add them back.
+            String rootCaPem = PemUtils.BEGIN_CERT + "\n" + PemUtils.encodeCertificate(rootCaCert) + "\n" + PemUtils.END_CERT;
+
+            InfoBean info = new InfoBean(
+                    "Attestation certificates generated",
+                    "Two EC key pairs and certificates have been generated. " +
+                    "The root CA certificate (shown below) must be configured as a trusted certificate " +
+                    "in the 'Trusted Key' identity provider in Keycloak. " +
+                    "Credential request proofs will use x5c header (instead of kid).",
+                    "Root CA certificate (PEM) - configure this in Keycloak trusted-key IDP",
+                    rootCaPem);
+            info.addOutput("Root CA certificate details", rootCaCert.toString());
+            info.addOutput("Attestation (leaf) certificate details", attestationCert.toString());
+            return info;
+        } catch (Exception e) {
+            throw new MyException("Failed to generate attestation certificates: " + e.getMessage(), e);
+        }
+    }
+
+    private InfoBean generateAttestationKey(ActionHandlerContext actionContext) {
+        OID4VCIContext oid4vciCtx = actionContext.getSession().getOrCreateOID4VCIContext();
+        KeyWrapper newKey = ProofUtil.createEcKeyPair(true);
+        oid4vciCtx.setAttestationKey(newKey);
+        PersistenceProvider.saveAttestationKey(oid4vciCtx);
+
+        try {
+            JWK publicJwk = JWKBuilder.create().ec(newKey.getPublicKey());
+            publicJwk.setKeyId(newKey.getKid());
+            publicJwk.setAlgorithm(newKey.getAlgorithm());
+
+            // Wrap single JWK in a JWKS structure {"keys": [...]} for display
+            Map<String, Object> jwksMap = Map.of("keys", List.of(publicJwk));
+            String jwksStr = JsonSerialization.writeValueAsPrettyString(jwksMap);
+            return new InfoBean(
+                    "Attestation key generated",
+                    "A new EC (ES256) attestation key has been generated. Configure a 'Trusted Key' identity provider " +
+                    "in Keycloak with the JWKS shown below, and make sure your client references that IDP.",
+                    "Attestation key (public JWKS)",
+                    jwksStr);
+        } catch (IOException e) {
+            throw new MyException("Failed to serialize attestation key to JWKS", e);
+        }
+    }
+
     private InfoBean credentialRequest(ActionHandlerContext actionContext) {
         OID4VCIContext oid4vciCtx = actionContext.getSession().getOrCreateOID4VCIContext();
-        String oid4vcAccessToken = oid4vciCtx.getAccessToken();
+
+        // Fix: apply form params (including proof type) before processing the request
+        collectOID4VCIConfigParams(actionContext.getParams(), oid4vciCtx);
+
+        String oid4vcAccessToken = actionContext.getSession().getTokenRequestCtx().getResponse().getAccessToken();
 
         if (oid4vcAccessToken == null) {
             return new InfoBean("No OID4VCI access token", "No access token capable of doing OID4VCI credential request. Please start OID4VCI authorization-code or pre-authorization code grant");
         }
 
+        if (!checkProofKeyPresentIfNeeded(oid4vciCtx)) {
+            return new InfoBean("Proof key required",
+                    "You need to create proof key before sending credential request with the proof.");
+        }
+
+        if (!checkAttestationKeyPresentIfNeeded(oid4vciCtx)) {
+            return new InfoBean("Attestation key missing",
+                    "Please generate and configure attestation key by clicking 'Generate attestation key' first, " +
+                    "then configure the corresponding Trusted Key identity provider in Keycloak.");
+        }
+
         try {
-            WebRequestContext<Oid4vcCredentialRequest, Oid4vcCredentialResponse> credentialResponse = triggerCredentialRequest(oid4vciCtx);
+            CredentialRequestFullContext fullContext =
+                    triggerCredentialRequest(oid4vciCtx, oid4vcAccessToken);
+
+            WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> credentialResponse = fullContext.credentialRequestCtx;
             Map<String, Object> credRequest = OAuthClientUtil.getRequestInfo(credentialResponse.getRequest());
             credRequest.put("Body", credentialResponse.getRequest().getCredentialRequest());
 
@@ -426,12 +673,62 @@ public class OID4VCIHandler implements ActionHandler {
                 credentialResponseStr = "IllegalStateException: " + iae.getMessage();
             }
 
-            return new InfoBean(
-                    "Credential request", JsonSerialization.writeValueAsPrettyString(credRequest),
-                    "Credential response", credentialResponseStr);
+            InfoBean info = new InfoBean();
+
+            // Add "nonce" if it was used
+            if (fullContext.nonceRequest != null) {
+                info.addOutput("Nonce request", JsonSerialization.writeValueAsPrettyString(fullContext.nonceRequest));
+                info.addOutput("Nonce response", fullContext.nonceResponse);
+            }
+
+            info.addOutput("Credential request", JsonSerialization.writeValueAsPrettyString(credRequest));
+
+            // Append proof-related display entries when a proof was used
+            if (ProofType.JWT.equals(fullContext.proofType) && fullContext.proofJwt != null) {
+                info.addOutput("JWT proof (parsed header)", parseJwtHeader(fullContext.proofJwt));
+                info.addOutput("JWT proof (parsed payload)", parseJwtPayload(fullContext.proofJwt));
+
+                JWSHeader jwsHeader = new JWSInput(fullContext.proofJwt).getHeader();
+                String keyAttestationJwt = (String) jwsHeader.getOtherClaims().get("key_attestation");
+                if (keyAttestationJwt != null) {
+                    info.addOutput("Key attestation JWT (parsed header)", parseJwtHeader(keyAttestationJwt));
+                    info.addOutput("Key attestation JWT (parsed payload)", parseJwtPayload(keyAttestationJwt));
+                }
+
+            } else if (ProofType.ATTESTATION.equals(fullContext.proofType) && fullContext.proofJwt != null) {
+                info.addOutput("Attestation proof (parsed header)", parseJwtHeader(fullContext.proofJwt));
+                info.addOutput("Attestation proof (parsed payload)", parseJwtPayload(fullContext.proofJwt));
+            }
+
+            info.addOutput(    "Credential response", credentialResponseStr);
+
+            return info;
         } catch (Exception ioe) {
             throw new MyException("Unexpected exception when preparing/sending credential request: " + ioe.getMessage(), ioe);
         }
+    }
+
+    private boolean checkProofKeyPresentIfNeeded(OID4VCIContext oid4vciCtx) {
+        String proofType = oid4vciCtx.getProofType();
+        if (!"none".equals(proofType) && oid4vciCtx.getProofKey() == null) {
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkAttestationKeyPresentIfNeeded(OID4VCIContext oid4vciCtx) {
+        // Guard: attestation proof requires that a key was previously generated
+        String proofType = oid4vciCtx.getProofType();
+        if (ProofType.ATTESTATION.equals(proofType) && oid4vciCtx.getAttestationKey() == null) {
+            return false;
+        }
+        // Guard: JWT proof with attestation also requires a pre-generated attestation key
+        if (ProofType.JWT.equals(proofType) && oid4vciCtx.isUseAttestationForJwtProof() && oid4vciCtx.getAttestationKey() == null) {
+            return false;
+        }
+
+        // OK
+        return true;
     }
 
     private InfoBean getLastCredentialResponse(ActionHandlerContext actionContext) {
@@ -481,8 +778,29 @@ public class OID4VCIHandler implements ActionHandler {
                 // Assumptions it is Sd-JWT VC. TODO: Make it working for W3C credentials...
                 SdJwtVP sdJWTVP = SdJwtVP.of(credentialStr);
 
-                String newSdJWT = sdJWTVP.presentWithSpecifiedClaims (claimsToPresent, false, null, null);
-                log.infof("New sd JWT: %s",  newSdJWT);
+                // Check if the credential has key-binding (cnf claim present)
+                JsonNode cnfClaim = sdJWTVP.getCnfClaim();
+                ObjectNode keyBindingClaims = null;
+                ECDSASignatureSignerContext holderSignerContext = null;
+
+                if (cnfClaim != null) {
+                    KeyWrapper proofKey = oid4vciCtx.getProofKey();
+                    if (proofKey == null) {
+                        return new InfoBean("Proof key required",
+                                "You need to create proof key before creating a key-bound presentation.");
+                    }
+                    long now = Time.currentTime();
+                    keyBindingClaims = JsonNodeFactory.instance.objectNode();
+                    keyBindingClaims.put(OID4VCConstants.CLAIM_NAME_IAT, now);
+                    keyBindingClaims.put(OID4VCConstants.CLAIM_NAME_EXP, now + 3600);
+                    holderSignerContext = new ECDSASignatureSignerContext(proofKey);
+                    log.infof("Credential has cnf claim – creating key-bound presentation");
+                } else {
+                    log.infof("Credential has no cnf claim – creating unbound presentation");
+                }
+
+                String newSdJWT = sdJWTVP.presentWithSpecifiedClaims(claimsToPresent, false, keyBindingClaims, holderSignerContext);
+                log.infof("New sd JWT: %s", newSdJWT);
 
                 SdJwtVP presentation = SdJwtVP.of(newSdJWT);
 
@@ -495,16 +813,24 @@ public class OID4VCIHandler implements ActionHandler {
                 }
                 claimsStr.append("}");
 
-                return new InfoBean(
-                        "Plain-presentation", credentialStr,
-                        "Sd-JWT presentation - header", JsonSerialization.writeValueAsPrettyString(jwsHeader),
-                        "Sd-JWT presentation - payload", JsonSerialization.writeValueAsPrettyString(payloadNode),
-                        "Sd-JWT presentation - disclosed claims", claimsStr.toString());
+                InfoBean info = new InfoBean();
+                info.addOutput("Plain-presentation", newSdJWT);
+                info.addOutput("Sd-JWT presentation - header", JsonSerialization.writeValueAsPrettyString(jwsHeader));
+                info.addOutput("Sd-JWT presentation - payload", JsonSerialization.writeValueAsPrettyString(payloadNode));
+                info.addOutput("Sd-JWT presentation - disclosed claims", claimsStr.toString());
+
+                // If a key-binding JWT was added, display it
+                if (presentation.getKeyBindingJWT().isPresent()) {
+                    KeyBindingJWT kb = presentation.getKeyBindingJWT().get();
+                    info.addOutput("Key-binding JWT (parsed header)", JsonSerialization.writeValueAsPrettyString(kb.getJwsHeader()));
+                    info.addOutput("Key-binding JWT (parsed payload)", JsonSerialization.writeValueAsPrettyString(kb.getPayload()));
+                }
+
+                return info;
             } catch (IOException ioe) {
                 throw new MyException("Exception when displaying latest presentation", ioe);
             }
         }
-
     }
 
     private InfoBean handleAIAFlow(ActionHandlerContext actionContext) {
@@ -518,7 +844,7 @@ public class OID4VCIHandler implements ActionHandler {
         String clientId = actionContext.getSession().getRegisteredClient().getClientId();
 
         LoginUrlBuilder loginUrl = LoginUtil.getAuthorizationRequestUrl(actionContext.getSession().getOidcConfigContext(), actionContext.getUriInfo(), null);
-        VerifiableCredentialOfferAction.CredentialOfferActionConfig cfg = getKcActionConfig(oid4vciCtx.getSelectedCredentialId(), clientId);
+        VerifiableCredentialOfferActionConfig cfg = getKcActionConfig(oid4vciCtx.getSelectedCredentialId(), clientId, oid4vciCtx.isPreAuthorized());
         String kcAction = getKcActionParameter(cfg);
         loginUrl.kcAction(kcAction);
         String loginUrlStr = loginUrl.build();
@@ -529,15 +855,15 @@ public class OID4VCIHandler implements ActionHandler {
                 "OIDC Authentication Request URL", loginUrlStr);
     }
 
-    private VerifiableCredentialOfferAction.CredentialOfferActionConfig getKcActionConfig(String credentialConfigId, String clientId) {
-        VerifiableCredentialOfferAction.CredentialOfferActionConfig cfg = new VerifiableCredentialOfferAction.CredentialOfferActionConfig();
+    private VerifiableCredentialOfferActionConfig getKcActionConfig(String credentialConfigId, String clientId, boolean preAuthorized) {
+        VerifiableCredentialOfferActionConfig cfg = new VerifiableCredentialOfferActionConfig();
         cfg.setCredentialConfigurationId(credentialConfigId);
         cfg.setClientId(clientId);
-        cfg.setPreAuthorized(true);
+        cfg.setPreAuthorized(preAuthorized);
         return cfg;
     }
 
-    private String getKcActionParameter(VerifiableCredentialOfferAction.CredentialOfferActionConfig cfg) {
+    private String getKcActionParameter(VerifiableCredentialOfferActionConfig cfg) {
         try {
             String cfgAsString = cfg.asEncodedParameter();
             return VERIFIABLE_CREDENTIAL_OFFER_PROVIDER_ID + ":" + cfgAsString;

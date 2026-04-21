@@ -1,0 +1,73 @@
+<svg width="100%" viewBox="0 0 760 330" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Arrowhead markers -->
+    <marker id="arrow-navy" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0, 8 3.5, 0 7" fill="#1e40af"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0, 8 3.5, 0 7" fill="#059669"/>
+    </marker>
+    <marker id="arrow-gray" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0, 8 3.5, 0 7" fill="#57606a"/>
+    </marker>
+    <marker id="arrow-dark" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0, 8 3.5, 0 7" fill="#1f2328"/>
+    </marker>
+  </defs>
+
+  <style>
+    text { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; }
+    .label-title { font-size: 13px; font-weight: 700; }
+    .label-sub { font-size: 11px; }
+    .step-num { font-size: 11px; font-weight: 700; }
+    .step-desc { font-size: 10.5px; }
+  </style>
+
+  <!-- Lifelines (dashed) -->
+  <line x1="100" y1="80" x2="100" y2="290" stroke="#93c5fd" stroke-width="1.5" stroke-dasharray="4,4"/>
+  <line x1="380" y1="80" x2="380" y2="290" stroke="#6ee7b7" stroke-width="1.5" stroke-dasharray="4,4"/>
+  <line x1="660" y1="80" x2="660" y2="290" stroke="#fcd34d" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+  <!-- Party Box: Wallet -->
+  <rect x="25" y="20" width="150" height="60" rx="6" fill="#dbeafe" stroke="#3b82d4" stroke-width="1.5"/>
+  <text x="100" y="44" text-anchor="middle" class="label-title" fill="#1e40af">Wallet</text>
+  <text x="100" y="60" text-anchor="middle" class="label-sub" fill="#1e40af">generates proof key</text>
+  <text x="100" y="73" text-anchor="middle" class="label-sub" fill="#1e40af">signs proof JWT</text>
+
+  <!-- Party Box: Issuer -->
+  <rect x="305" y="20" width="150" height="60" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.5"/>
+  <text x="380" y="44" text-anchor="middle" class="label-title" fill="#065f46">Issuer</text>
+  <text x="380" y="60" text-anchor="middle" class="label-sub" fill="#065f46">(Keycloak)</text>
+  <text x="380" y="73" text-anchor="middle" class="label-sub" fill="#065f46">verifies proof → cnf</text>
+
+  <!-- Party Box: Verifier -->
+  <rect x="585" y="20" width="150" height="60" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="660" y="44" text-anchor="middle" class="label-title" fill="#92400e">Verifier</text>
+  <text x="660" y="60" text-anchor="middle" class="label-sub" fill="#92400e">verifies issuer sig</text>
+  <text x="660" y="73" text-anchor="middle" class="label-sub" fill="#92400e">+ key binding (cnf)</text>
+
+  <!-- Step 0: Wallet -> Issuer (get c_nonce / nonce response) -->
+  <path d="M 100 106 L 372 106" stroke="#57606a" stroke-width="1.2" stroke-dasharray="4,2" marker-end="url(#arrow-gray)"/>
+  <text x="240" y="100" text-anchor="middle" class="step-num" fill="#57606a">① Get c_nonce (Nonce endpoint)</text>
+
+  <!-- Step 1: Wallet -> Issuer (Credential Request with proof) -->
+  <path d="M 100 146 L 372 146" stroke="#1e40af" stroke-width="1.5" marker-end="url(#arrow-navy)"/>
+  <text x="240" y="136" text-anchor="middle" class="step-num" fill="#1e40af">② Credential Request (proofs.jwt)</text>
+  <text x="240" y="157" text-anchor="middle" class="step-desc" fill="#57606a">proof JWT signed by proof key (header: jwk)</text>
+
+  <!-- Step 2: Issuer -> Wallet (Issued SD-JWT VC with cnf) -->
+  <path d="M 380 192 L 108 192" stroke="#059669" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+  <text x="240" y="184" text-anchor="middle" class="step-num" fill="#065f46">③ SD-JWT VC</text>
+  <text x="240" y="204" text-anchor="middle" class="step-desc" fill="#57606a">(cnf claim contains proof public key)</text>
+
+  <!-- Step 3: Wallet -> Verifier (Presentation with Key-Binding JWT) -->
+  <path d="M 100 238 L 652 238" stroke="#1f2328" stroke-width="1.5" marker-end="url(#arrow-dark)"/>
+  <text x="380" y="230" text-anchor="middle" class="step-num" fill="#1f2328">④ SD-JWT Presentation + Key-Binding JWT</text>
+  <text x="380" y="250" text-anchor="middle" class="step-desc" fill="#57606a">&lt;issuer-jwt&gt; ~ &lt;disclosures&gt; ~ &lt;key-binding-jwt&gt;</text>
+
+  <!-- Step 4: Verifier checks (note box) -->
+  <rect x="535" y="266" width="235" height="52" rx="4" fill="#ecfdf5" stroke="#10b981" stroke-width="1"/>
+  <text x="652.5" y="284" text-anchor="middle" font-size="11" font-weight="600" fill="#065f46">⑤ Issuer signature verified ✓</text>
+  <text x="652.5" y="300" text-anchor="middle" font-size="10.5" fill="#065f46">Holder Key Binding verified (cnf) ✓</text>
+  <text x="652.5" y="312" text-anchor="middle" font-size="9.5" fill="#57606a">(nonce, aud, sd_hash verified)</text>
+</svg>

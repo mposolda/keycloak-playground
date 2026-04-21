@@ -88,6 +88,20 @@ public class KeysWrapper {
         return getKeysAsPem();
     }
 
+    public OIDCClientData getClientData() {
+        return clientData;
+    }
+
+    /**
+     * Restores key data from persisted values (called by PersistenceProvider on startup).
+     */
+    public void loadFromPersisted(KeyPair keyPair, String keyType, String keyAlgorithm, KeyUse keyUse) {
+        clientData.setKeyPair(keyPair);
+        clientData.setKeyType(keyType);
+        clientData.setKeyAlgorithm(keyAlgorithm);
+        clientData.setKeyUse(keyUse);
+    }
+
     private Map<String, String> getKeysAsPem() {
         String privateKeyPem = PemUtils.encodeKey(clientData.getSigningKeyPair().getPrivate());
         String publicKeyPem = PemUtils.encodeKey(clientData.getSigningKeyPair().getPublic());

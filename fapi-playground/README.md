@@ -1,6 +1,6 @@
 # FAPI Playground
 
-This is the example application to demonstrate Keycloak FAPI 1 support and DPoP support. It requires to:
+This is the example application to demonstrate Keycloak support for various OAuth/OIDC related features like FAPI, DPoP or OId4VCI. It requires to:
 - Run and setup Keycloak server on your laptop
 - Run the application deployed on Quarkus
 
@@ -15,7 +15,7 @@ For DPoP, see https://datatracker.ietf.org/doc/html/rfc9449 and Keycloak documen
 
 ## Pre-requisites
 
-This demo assumes Keycloak running on `https://as.keycloak-fapi.org:8443` and application running on `https://app.keycloak-fapi.org:8543`.
+This demo will use Keycloak running on `https://as.keycloak-fapi.org:8443` and application running on `https://app.keycloak-fapi.org:8543` (or `https://localhost:8543`).
 This is to mimic real servers.  In order to have both running on your laptop, you may need to ensure that these servers are bound to your host.
 
 On linux, the easiest is to edit `/etc/hosts` file and add the host similar to this
@@ -23,9 +23,17 @@ On linux, the easiest is to edit `/etc/hosts` file and add the host similar to t
 127.0.0.1 as.keycloak-fapi.org app.keycloak-fapi.org
 ``` 
 
+## Download Keycloak server
+
+It is recommended to use latest Keycloak nightly server for this demo. See [here](https://www.keycloak.org/nightly/) for how to download it.
+
+Alternative approach is to build Keycloak from sources. See Keycloak codebase [README](https://github.com/keycloak/keycloak/blob/main/docs/building.md) for the details.
+
+After download, please unpack server to some directory, which will be referred as `$KEYCLOAK_HOME` in next steps.
+
 ## Build this project
 
-This project is tested with OpenJDK 21 and Maven 3.9.9 and Keycloak 26.6.0 release
+This project is tested with OpenJDK 21 and Maven 3.9.9 and Keycloak nightly release from 2026-09-10
 
 ### Build project
 
@@ -36,9 +44,12 @@ mvn clean install
 
 ## Start and prepare keycloak
 
-1) Copy keystore + truststore to the Keycloak distribution:
+1) Copy keystore + truststore to the Keycloak distribution.
+Also copy OID4VCI keystore. See [README-generate-keystore.md](keystores/oid4vci-ssl-test/README-generate-keystore.md) for the details on how that one was generated:
 ```
 cp keystores/keycloak.* $KEYCLOAK_HOME/bin
+mkdir -p $KEYCLOAK_HOME/data/test
+cp keystores/oid4vci-ssl-test/keystore.p12 $KEYCLOAK_HOME/data/test/keystore-e256.p12
 ```
 
 2) Pre-create admin user with username `admin` and password `admin`
@@ -51,7 +62,7 @@ cp keystores/keycloak.* $KEYCLOAK_HOME/bin
 cd $KEYCLOAK_HOME/bin
 ./kc.sh start --hostname=as.keycloak-fapi.org --https-key-store-file=keycloak.jks --https-key-store-password=secret \
 --https-trust-store-file=keycloak.truststore --https-trust-store-password=secret \
---https-client-auth=request --features=oid4vc-vci,oid4vc-vci-preauth-code
+--https-client-auth=request --features=oid4vc-vci
 ```
 
 
@@ -74,7 +85,10 @@ later use in the demo. For demo purposes, use bigger number of clients (EG. 99).
 mvn quarkus:run
 ```
 
-For debugging, it is possible to use `mvn quarkus:dev` (However application is then running on https://localhost:8543 )
+For debugging, it is possible to use `mvn quarkus:dev -Dquarkus.devservices.enabled=false` (However application is then running on https://localhost:8543 )
+
+NOTE: If you already used the demo before and you want to start from scratch, then before running application, it may be useful to delete directory `data`, which may contain some context data (like last registered client etc)
+from the previous run.
 
 ## Demo
 
@@ -160,7 +174,7 @@ for the successful login.
 
 ### OID4VCI Demo
 
-OID4VCI demo expects that server is started with the `--features=oid4vc-vci,oid4vc-vci-preauth-code` feature enabled.
+OID4VCI demo expects that server is started with the `--features=oid4vc-vci` feature enabled.
 It is expected to do all the steps above from steps in "Pre-requisites", "Build this project", "Start and prepare Keycloak"
 and "Start example app and deploy the example". The additional steps are specific to OID4VCI
 
@@ -176,9 +190,10 @@ See above in the "FAPI 1 demo" section about the details on how to register clie
 
 3) Go back to Keycloak admin console and lookup your newly registered client from the `test` realm.
 Manually update the client to:
-3.a) Enable OID4VCI switch for this client. It can be found in the `Advanced` tab of the client, and then in the section `OpenID for Verifiable Credentials`
+
+* 3.a) Enable OID4VCI switch for this client. It can be found in the `Advanced` tab of the client, and then in the section `OpenID for Verifiable Credentials`
 at the bottom of the page
-3.b) Assign some OID4VCI client scope to this client according to the credential you want to issue. For example you may assign
+* 3.b) Assign some OID4VCI client scope to this client according to the credential you want to issue. For example you may assign
 client scopes `education-certificate` and `oid4vc_natural_person` to the client. Make sure to assign it as `Optional` client scope to the client.
 
 4) In the demo application, obtain OID4VCI metadata (Button `Get OID4VCI metadata from well-known endpoint` in the OID4VCI section of the page) and make sure to
@@ -197,22 +212,162 @@ you selected `Education Certificate` in previous step (you can use any random va
 and due the fact that `education-certificate` scope was added as a request parameter to OIDC authentication request together
 with authorization details
 
-3) Now you can click `Credential request`, which should fail as user missing the mandatory attribute `education-certificate-number`.
+3) After performing this, you will see error with status 400 in the token-request because user `john` does not have requested verifiable credential.
+So next step, is to add the `Verifiable credential` to the user. In the other tab in the admin console, admin can click to user `john`
+-> tab `Verifiable credentials` -> Button `create verifiable credential` and create the credential for the requested scope (EG. education-certificate)
+for the user `john`. Then after retry from the step 1, the token response should be successful. 
 
-4) In the other tab in the admin console, admin is able to manually update user `john` and fill the `Education certificate number` for him 
+4) Now you can click `Credential request`, which should fail as user missing the mandatory attribute `education-certificate-number`.
+
+5) In the other tab in the admin console, admin is able to manually update user `john` and fill the `Education certificate number` for him 
 (You can again use any number you prefer) and then save user.
 In reality, assumption is, that there should be some "business process" needed for this (EG. user `john` uploads his university
 diploma somewhere to be able to share it with the administrator)
 
-5) Go back to fapi-demo and click `Credential request` again. Now credential should be successfully issued for `john` .
+6) Go back to fapi-demo and click `Credential request` again. Now credential should be successfully issued for `john` .
 
-6) See button `Show last verifiable credential` to see the parsed sd-jwt data.
+7) See button `Show last verifiable credential` to see the parsed sd-jwt data.
  
-7) Then fill `Claims to present (divided by comma):`
+8) Then fill `Claims to present (divided by comma):`
 with some claims (EG. `university,firstName,lastName`) and click `Create presentation from last verifiable credential`.
 You can see sd-jwt with only subset of the claims.
 
+9) In the admin console, you can click on the user `john` -> tab `Verifiable credentials` -> option `View issued credentials` for `education-certificate`
+and seeing that there is new issued-credential
+
+10) Refresh tokens demo: Refresh tokens are tight to the issued-verifiable-credential rather than to user session. For demo this:
+
+* 10.a) In admin console, you can click on the user `john` -> tab `Sessions` -> and find the appropriate session and logout it
+* 10.b) In the demo, you can click "Refresh token" (in the OIDC section) and check that refresh token is successful - even if user session was logged out. Also it is still possible to do `Credential request` to obtain refreshed verifiable credential
+* 10.c) Find the appropriate issued verifiable credential and revoke tab (See step 9 for how to find it). Once this is done, it is not possible to refresh anymore. Also not possible to obtain verifiable credential
+
+#### Using OID4VCI proofs in the credential request
+
+The `OID4VCI proof type` combo-box in the OID4VCI section controls whether a holder-binding proof is attached to the credential request (see [OID4VCI specification section 8.2](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-proof-types)).
+
+**Important:** Before sending a credential request with any proof type other than `none`, you must first click **Generate proof key** in the OID4VCI section. This generates an in-memory EC key pair that is used to sign the proof. If no proof key has been generated, clicking `Credential request` will show the error `Proof key required`. The proof key does not survive an application restart.
+
+Available values:
+- **none** (default) — no `proofs` parameter is sent; same behaviour as before.
+- **jwt** — a JWT proof is attached. The application uses the pre-generated proof key, obtains a `c_nonce` from the Keycloak nonce endpoint, and signs a `openid4vci-proof+jwt` JWT with the credential-issuer URL as audience.
+- **attestation** — a key-attestation proof is attached. The application uses a previously generated attestation key, embeds the pre-generated proof key inside the attestation JWT body, and signs a `key-attestation+jwt` JWT containing the `c_nonce`. See below for how to generate and configure the attestation key first.
+
+##### Configuring Keycloak to require proofs
+
+For Keycloak to validate and accept a proof, the `education-certificate` client scope (or whichever credential scope you are using) must be configured to require key binding. Without this configuration Keycloak accepts the credential request regardless of whether a proof is present.
+
+Steps in the Keycloak admin console:
+
+1. Go to `Client scopes` → `education-certificate` → tab `Settings`.
+2. Select **Cryptographic binding required** switch to ON. New options will be shown.
+3. Under **Cryptographic Binding Method**, select `jwk` (or another supported method).
+4. Under **Supported proof types**, add `jwt` and/or `attestation` depending on which proof types you want the scope to accept.
+5. Save the client scope.
+
+Once saved, any credential request for this scope that does **not** include a valid proof will be rejected by Keycloak with an `invalid_proof` error. Select `jwt` or `attestation` from the `OID4VCI proof type` combo-box in the demo before clicking `Credential request` to satisfy this requirement.
+
+NOTE: Initially the `attestation` proof will not work, just the `jwt` proof will work as expected as attestation keys are not yet set. See below for how to make `attestation` working.
+
+##### Using jwt proof type without attestation
+
+Once Keycloak client scope is set to require proofs as described in the previous step, in the fapi-playground you may try this:
+
+1. Click **Generate proof key** in the OID4VCI section to generate the proof key first.
+2. Select `jwt` from the `OID4VCI proof type` combo-box **but not** check the `Use attestation for JWT proofs` checkbox.
+3. Click `Credential request`. The JWT proof will contain:
+   - A `jwk` header with the pre-generated proof key.
+   - It will **not** contain the `key_attestation` header as the wallet proof key was not attested by trusted attester
+
+**Tip:** You can confirm that the proof was included by clicking `Credential request` and inspecting the `Body` field in the `Credential request` output panel — it should contain a `proofs` object with the corresponding `jwt` or `attestation` array.
+Once the credential is obtained, then you can also notice that sd-jwt credential will be bound to the
+key generated by the wallet (which is `fapi-playground` application). When click `Show last verifiable credential` button, you should
+see the `cnf` inside the Sd-JWT credential payload, which represents key bound to the Sd-JWT credential.
+
+##### Additional steps for the `attestation` proof type
+
+The `attestation` proof type requires that Keycloak has a **Trusted Key** identity provider configured with the attestation public key.
+
+Follow these steps **before** selecting `attestation` and clicking `Credential request`:
+
+1. In the fapi-playground application, click **Generate proof key** (in the OID4VCI section) to generate the proof key used inside the attestation proof body.
+
+2. In the fapi-playground application, click **Generate attestation key** (in the OID4VCI section).
+   The page will display the public key of the generated attestation key in JWKS format under the heading `Attestation key (public JWKS)`.
+   Copy this JWKS value.
+
+3. In the Keycloak admin console for realm `test`, go to **Identity Providers** and create a new **Trusted Key** identity provider.
+   Paste the JWKS copied from the previous step into the field `Validating public key` of the provider configuration (field is visible once `Use JWKS URL` is unchecked).
+   Save the identity provider.
+   For more details on how to configure the Trusted Key identity provider see the [Keycloak documentation on OID4VCI proofs](https://www.keycloak.org/docs/nightly/server_admin/index.html#_oid4vci_proofs).
+
+4. On your registered OIDC client in the Keycloak admin console, go to the **Advanced** tab → section **OpenID for Verifiable Credentials**.
+   Under **Trusted Key providers**, add a reference to the Trusted Key identity provider created in the previous step.
+   Save the client.
+
+5. Back in the fapi-playground application, select `attestation` from the `OID4VCI proof type` combo-box and click **Credential request**.
+   The attestation proof will be signed with the key generated in step 1 and Keycloak will be able to verify it against the registered JWKS.
+
+> **Note:** If you click **Generate attestation key** again, a new key pair is created and the old one is discarded. You must then repeat steps 2–3 above with the new JWKS, otherwise Keycloak will again reject the proof.
+
+##### Alternative: using X.509 certificate-based attestation
+
+Instead of generating a bare attestation key (JWKS), you can use the **Generate attestation certificates** button.
+This generates two EC key pairs tied to X.509 certificates:
+
+- A **root CA certificate** (`DC=com,CN=my-root-attestation-ca`) — self-signed, with the `BasicConstraints CA=true` and `keyCertSign` extensions.
+- An **attestation (leaf) certificate** (`DC=com,CN=my-attestation-cert`) — an end-entity certificate signed by the root CA, with `BasicConstraints CA=false` and `digitalSignature` key usage.
+
+When this button is used, the attestation JWT sent in credential requests will carry an `x5c` header (containing the leaf + root CA certificate chain) instead of a `kid` header. This is the setup described in [HAIP specification section 4.5](https://openid.net/specs/openid4vc-high-assurance-interoperability-profile-1_0-final.html#section-4.5).
+
+Follow these steps to use certificate-based attestation:
+
+1. In the fapi-playground application, click **Generate proof key** to generate the proof key.
+
+2. Click **Generate attestation certificates** (in the OID4VCI section).
+   The page will display:
+   - The **Root CA certificate (PEM)** — copy this value; it must be configured in Keycloak.
+   - Full details of both the root CA and the leaf attestation certificate.
+
+3. In the Keycloak admin console for realm `test`, go to **Identity Providers** and create a new **Trusted Key** identity provider.
+   In the provider configuration:
+   - Enable the switch **Use X.509 attestation trust**.
+   - Paste the Root CA certificate PEM (copied in the previous step) into the field **Trusted attestation certificates**.
+   Save the identity provider.
+
+4. On your registered OIDC client in the Keycloak admin console, go to the **Advanced** tab → section **OpenID for Verifiable Credentials**.
+   Under **Trusted Key providers**, add a reference to the Trusted Key identity provider created above.
+   Save the client.
+
+5. Back in the fapi-playground application, select `attestation` from the `OID4VCI proof type` combo-box and click **Credential request**.
+   The attestation proof will be signed with the leaf attestation key and Keycloak will validate it via the certificate chain against the configured root CA.
+
+> **Note:** Every time you click **Generate attestation certificates** a fresh key pair and certificate chain are created. If you regenerate them you must repeat steps 2–3 above with the new root CA PEM.
+
+##### Using attestation with the `jwt` proof type
+
+The `Use attestation for JWT proofs` checkbox (in the OID4VCI section) is only relevant when `OID4VCI proof type` is set to `jwt`.
+When checked, the JWT proof will include an additional `key_attestation` header that carries an inner attestation JWT signed by the pre-generated attestation key.
+Keycloak's `JwtProofValidator` will verify this attestation header against the registered Trusted Key identity provider, providing stronger key binding guarantees.
+
+- When the checkbox is **OFF** (default), the `jwt` proof is generated as usual with a plain `jwk` header and no attestation.
+- When the checkbox is **ON** and an attestation key has **not** been generated yet, clicking `Credential request` will show the same error as for the `attestation` proof type: `Attestation key missing`.
+- When the checkbox is **ON** and an attestation key **has** been generated, the JWT proof will embed the `key_attestation` header containing an inner attestation JWT that attests the proof key. This is the format described in [OID4VCI specification section 8.2.1.1](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-jwt-proof-type) and validated by `JwtProofValidator` in the Keycloak codebase.
+
+To use this feature:
+
+1. Click **Generate proof key** in the OID4VCI section to generate the proof key first.
+2. Follow the same steps as for the `attestation` proof type (generate the attestation key, configure the Trusted Key IDP in Keycloak, and link it to the client). See the section *Additional steps for the `attestation` proof type* above.
+3. Select `jwt` from the `OID4VCI proof type` combo-box **and** check the `Use attestation for JWT proofs` checkbox.
+4. Click `Credential request`. The JWT proof will contain:
+   - A `jwk` header with the pre-generated proof key.
+   - A `key_attestation` header with the inner attestation JWT signed by the attestation key, attesting the proof key.
+
+> **Note:** The attestation key must be registered in Keycloak's Trusted Key identity provider (same as for the standalone `attestation` proof). If `Use attestation for JWT proofs` is checked but no attestation key has been generated, the application will block the request with an error.
+
+
 #### Flow with pre-authorized grant and application-initiated action
+
+NOTE: This is temporarily disabled. It does not work as it supports some pieces in Keycloak, which are experimental and were changed in the Keycloak in the meantime.
 
 User authenticates with the "authorization code flow" to the portal application from where he can choose verifiable credential.
 Once user clicks on the credential, he is redirected to Keycloak, from where he eventually needs to re-authenticate and then the page
@@ -237,6 +392,8 @@ and paste the credential offer from your clipboard (It would be value similar to
 
 #### Flow with pre-authorized grant and offer created by sending request to custom REST endpoint
 
+NOTE: This is temporarily disabled. It does not work as it supports some pieces in Keycloak, which are experimental and were changed in the Keycloak in the meantime.
+
 1) Pre-authorized code obtained by "administrator" sending request to the REST endpoint, which creates credential-offer for target user. 
 
 **NOTE:** This might not be supported in the future in a way currently done in this demo.
@@ -249,22 +406,6 @@ obtained for `alice` .
 for the details.
 
 3) Repeat steps 5, 6, 7 from "Wallet initiated flow demo" and observe new `oid4vc_natural_person` VC for alice
-
-
-## Test with latest Keycloak nightly 
-
-1) Build Keycloak
-
-It may be good to build Keycloak as project has dependency on Keycloak snapshot. You can either edit your `pom.xml` to allow downloading snapshots from last nightly build, but
-maybe easier is to build Keycloak on your laptop to make sure that snapshot artifacts available in your local repository. Some possible steps to do it:
-
-```
-git clone git@github.com:keycloak/keycloak.git
-cd keycloak
-mvn clean install -DskipTests=true -Pdistribution
-```
-
-2) Update in `pom.xml` and set `keycloak.version` property to `999.0.0-SNAPSHOT` .
 
 ## Contributions
 
@@ -284,7 +425,6 @@ Feel free to create GH issue at least if you find the trouble, but PR with contr
 
 5) OID4VCI demo improvement - Other things to add might be:
 - Cleanup existing stuff and make it more user friendly (there is likely too much buttons and is hard to use)
-- Key-binding and proofs support for SD-JWT credential 
 - Integrate with real wallets (instead of need to copy/paste the `Credential offer` manually to this FAPI playground)
 
 (See above for potential contributions tips and also search for `TODO:` in the code :-) )

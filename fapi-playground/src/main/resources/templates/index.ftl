@@ -155,19 +155,65 @@
                     </select>
                 </td>
             </tr>
+<!--            <tr>
+                <td>PreAuthorized: </td>
+                <td>
+                    <#if oid4vciCtx.preAuthorized>
+                        <input id="oid4vci-pre-authorized" name="oid4vci-pre-authorized" type="checkbox" checked>
+                    <#else>
+                        <input id="oid4vci-pre-authorized" name="oid4vci-pre-authorized" type="checkbox">
+                    </#if>
+                </td>
+            </tr>
+-->
             <tr><td>Claims to present (divided by comma): </td><td><input id="oid4ci-claims-to-present" name="oid4ci-claims-to-present" value="${oid4vciCtx.claimsToPresent!}"></td></tr>
+            <tr>
+                <td>OID4VCI proof type: </td>
+                <td>
+                    <select name="oid4vci-proof-type" id="oid4vci-proof-type">
+                        <#if oid4vciCtx.proofType == "none">
+                            <option value="none" selected>none</option>
+                        <#else>
+                            <option value="none">none</option>
+                        </#if>
+                        <#if oid4vciCtx.proofType == "jwt">
+                            <option value="jwt" selected>jwt</option>
+                        <#else>
+                            <option value="jwt">jwt</option>
+                        </#if>
+                        <#if oid4vciCtx.proofType == "attestation">
+                            <option value="attestation" selected>attestation</option>
+                        <#else>
+                            <option value="attestation">attestation</option>
+                        </#if>
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <td>Use attestation for JWT proofs: </td>
+                <td>
+                    <#if oid4vciCtx.useAttestationForJwtProof>
+                        <input id="oid4vci-jwt-use-attestation" name="oid4vci-jwt-use-attestation" type="checkbox" checked>
+                    <#else>
+                        <input id="oid4vci-jwt-use-attestation" name="oid4vci-jwt-use-attestation" type="checkbox">
+                    </#if>
+                </td>
+            </tr>
 <!--            <tr><td>Client ID (for pre-authorized grant): </td><td><input id="oid4ci-preauthz-client_id" name="oid4ci-preauthz-client_id" value="${oid4vciCtx.preauthzClientId!}"></td></tr>-->
-            <tr><td>Username (for pre-authorized grant with REST): </td><td><input id="oid4ci-preauthz-username" name="oid4ci-preauthz-username" value="${oid4vciCtx.preauthzUsername!}"></td></tr>
-            <tr><td>Credential offer (for pre-authorized grant with offer): </td><td><input id="oid4ci-preauthz-offer" name="oid4ci-preauthz-offer" value="${oid4vciCtx.preauthzOffer!}"></td></tr>
+<!--            <tr><td>Username (for pre-authorized grant with REST): </td><td><input id="oid4ci-preauthz-username" name="oid4ci-preauthz-username" value="${oid4vciCtx.preauthzUsername!}"></td></tr>-->
+<!--            <tr><td>Credential offer URL: </td><td><input id="oid4ci-preauthz-offer" name="oid4ci-preauthz-offer" value="${oid4vciCtx.preauthzOffer!}"></td></tr>-->
         </table>
     </div>
     <br />
     <div>
         <button onclick="submitWithAction('oid4vci-wellknown-endpoint')">Get OID4VCI metadata from well-known endpoint</button>
+        <button onclick="submitWithAction('oid4vci-generate-proof-key')">Generate proof key</button>
+        <button onclick="submitWithAction('oid4vci-generate-attestation-key')">Generate attestation key</button>
+        <button onclick="submitWithAction('oid4vci-generate-attestation-certificates')">Generate attestation certificates</button>
         <#if oid4vciCtx.credentialIssuerMetadata??>
             <button onclick="submitWithAction('oid4vci-authz-code-flow')">Cred. issuance - Authorization code grant</button>
         </#if>
-        <#if oid4vciCtx.credentialIssuerMetadata?? && appState.authenticated>
+<!--         <#if oid4vciCtx.credentialIssuerMetadata?? && appState.authenticated>
             <button onclick="submitWithAction('oid4vci-pre-authz-code-flow')">Cred. issuance - Pre-authorized code grant (REST endpoint flow)</button>
         </#if>
         <#if oid4vciCtx.credentialIssuerMetadata??>
@@ -176,7 +222,8 @@
         <#if appState.authenticated>
             <button onclick="submitWithAction('oid4vci-pre-authz-code-with-offer')">Cred. issuance - Pre-authorized code grant (with offer)</button>
         </#if>
-        <#if oid4vciCtx.accessToken??>
+-->
+        <#if appState.authenticated && oid4vciCtx.authzDetails??>
             <button onclick="submitWithAction('oid4vci-credential-request')">Credential request</button>
         </#if>
         <#if oid4vciCtx.credentialResponse??>
