@@ -17,25 +17,25 @@ It was possible to successfully integrate Keycloak 26.6.0 with Lissi ID Wallet a
 * Lissi wallet mentions in their [Terms and conditions](https://docs.lissi.id/legal/lissi-id-wallet-allgemeine-geschaftsbedingungen-te) (in german) that it is just for testing purposes for now.
 
 * It seems that lissi wallet uses hardcoded clientId and redirect-url in their. This client is needed to be pre-configured on the
-Keycloak side (See steps below for the details). It looks that same applies for some other wallets according to the [WSO2 documentation](https://is.docs.wso2.com/en/next/guides/verifiable-credentials/issue-vc/), which describe
+Keycloak side (See steps below for the details). It looks that same applies for some other wallets according to the [WSO2 documentation](https://is.docs.wso2.com/en/next/guides/verifiable-credentials/issue-vc/#tested-wallets), which describe
 some steps for the integration with those wallets.
 
 #### Steps for integration Keycloak 26.6.0 with Lissi ID Wallet
 
 1) Install Lissi ID Wallet app on the android phone. Tested with version 3.0.1 (15828). Needed to setup PIN and biometrics in the application.
 
-**NOTE: New version released on Apr 20 (3.1.3 (17277) . TODO: Test with that  version and update below instructions.**
+  *NOTE: New version released on Apr 20 (3.1.3 (17277) . TODO: Test with that  version and update below instructions.*
 
 2) Lissi wallet requires Keycloak running on the HTTPS and real host with widely known certificate. Here the example how to
 run Keycloak on real host with the use of https://localhost.run/docs/http-tunnels
 
-2.a) Run this in the linux terminal `ssh -R 80:localhost:8080 localhost.run`
+    2.a) Run this in the linux terminal `ssh -R 80:localhost:8080 localhost.run`
 
-2.b) Copy/paste the URL from the terminal above and start Keycloak with something like:
+    2.b) Copy/paste the URL from the terminal above and start Keycloak with something like:
 ```
 ./kc.sh start --hostname https://2ce816c8200c75.lhr.life --http-enabled true --proxy-headers xforwarded --features=oid4vc-vci,oid4vc-vci-preauth-code
 ```
-2.c) Keycloak should be up and running on URL like https://2ce816c8200c75.lhr.life with the real certificate
+    2.c) Keycloak should be up and running on URL like https://2ce816c8200c75.lhr.life with the real certificate
 
 3) Import the realm from [fapi-playground](singleFile-realm.json). Most important points:
 
