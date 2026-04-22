@@ -222,3 +222,14 @@ Authlete sits behind such frontend servers and is invisible from end users.
 * Demos https://www.authlete.com/developers/oid4vci/#4-oid4vci-demo . Provided demos are:
   * Pre-Authorized Code Flow + Key Proof + SD-JWT VC 
   * Authorization Code Flow + PAR + DPoP + mdoc
+
+### Mattr (WiP)
+
+Most important https://learn.mattr.global/docs/issuance/implementation
+
+* When generating a credential offer, issuers can influence which wallet applications are able to claim the offer and how the user experience flows.
+In other words, there is support for `User has permission to obtain credential X just for specific wallet Y`
+
+* Support for credentials status (Tracking of issued VC for individual users). Support for transaction status draft specification.
+
+
