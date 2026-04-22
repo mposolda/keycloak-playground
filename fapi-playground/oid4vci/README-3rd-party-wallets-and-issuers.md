@@ -188,7 +188,7 @@ When opening https://localhost:9443/oid4vci/credential-offer/48590b61-f6c8-4bdf-
 
 * Very nice documentation with lots of diagrams explaining OID4VCI concepts: https://www.authlete.com/developers/oid4vci/
 
-* Authlete provides just API, but does not provide end solution for developer (end-to-end credential issuer and authorization
+* Authlete provides just REST API, but does not provide end solution for developer (end-to-end credential issuer and authorization
 server). From their docs (Start of chapter 3 - https://www.authlete.com/developers/oid4vci/#3-oid4vci-implementation) : While
 most vendors directly provide implementations of frontend servers such as an authorization server, Authlete takes a different
 approach. Authlete provides a set of Web APIs with which developers themselves can implement their own frontend servers.
@@ -200,10 +200,12 @@ Authlete sits behind such frontend servers and is invisible from end users.
 * Servers need to call "Authlete APIs" . Authlete provides API for:
   * informations about credential metadata (OID4VCI issuer metadata endpoint). Returned metadata are dependent on how Authlete is configured
 
-  * REST API for creating credential-offer : https://www.authlete.com/developers/oid4vci/#341-the-vcioffercreate-api
+  * REST API for creating/get credential-offer : https://www.authlete.com/developers/oid4vci/#341-the-vcioffercreate-api
     NOTE: For pre-authorized code, they support returning `pre-authorized code` and `tx-code` in same REST response. Not ideal for security (although it is needed in case of Authlete as it does not provide full authorization-server and identity-server, but rather just APIs)
  
-  * REST API for the token endpoint and credential request - TODO: More details
+  * REST API for the OIDC authentication request, token endpoint and token introspection (OIDC, not OID4VCI specific) 
+  
+  * REST API for credential request and sending back the credential from Authlete
 
 * On the side of OIDC client, there is switch "Credential response encrypted", which specifies if response to this client must be always encrypted.
   
