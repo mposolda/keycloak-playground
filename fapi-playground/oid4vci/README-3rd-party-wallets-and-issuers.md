@@ -125,7 +125,7 @@ enable = true
 ```
 Maybe it is not strictly needed, but it helped to see the verifiable credentials and option for creating digital wallet in the application
 
-* In the 7.3.0-Beta1 version, I was able to go to admin console "Verifiable credentials" tab and create "Verifiable credential template" . This is
+* In the admin console, it is possible to "Verifiable credential template" as mentioned in [the docs](https://is.docs.wso2.com/en/next/guides/verifiable-credentials/issue-vc/). This is
 pretty much similar we have for OID4VCI client scope and there are bit similar settings, however there are less options
 in comparison to Keycloak. Important configuration options are "Credential identifier" (maps to `credential_configuration_id` as well as name of the client
 scope), user attributes to map to the credential, validity (30 days by default) and format (supported are `dc+sd-jwt` and `jwt_vc_json` like we have).
@@ -138,7 +138,7 @@ which can be requested during OIDC login with the use of `scope` parameter refer
 
 * No `pre-authorized grant` support. No `issuer_state` parameter support for `authorization code` grant.
 
-* No support for for "personalized" credential offers for the concrete users and concrete clients. There is single credential offer
+* No support for "personalized" credential offers for the concrete users and concrete clients. There is single credential offer
 for the specific credential type, which is supposed to be used by all users and wallets. It is single QR code for credential-type, which
 is supposed to be used by everyone. For the details, see below the section "WSO2 credential offer - details"
 
