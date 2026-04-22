@@ -9,7 +9,7 @@ This document contains some notes for:
 
 ### Lissi Wallet
 
-It was possible to successfully integrate Keycloak 26.6.0 with Lissi ID Wallet android application with the use of both
+It was possible to successfully integrate Keycloak nightly (from 2026-04-22) with Lissi ID Wallet android application with the use of both
 `authorization_code` and `pre-authorized code` flows.
 
 * It seems that Lissi wallet still uses older version of OID4VCI specification (not the OID4VCI 1.0.Final).
@@ -22,23 +22,15 @@ some steps for the integration with those wallets.
 
 #### Steps for integration Keycloak 26.6.0 with Lissi ID Wallet
 
-1) **Install Lissi ID Wallet app on the android phone**. Tested with version 3.0.1 (15828). Needed to setup PIN and biometrics in the application.
-*NOTE: New version 3.1.3 (17277) released on Apr 20 2026. TODO: Test with that  version and update below instructions.*
+1) **Install Lissi ID Wallet app on the android phone**. Tested with version 3.1.3 (17277). Needed to setup PIN and biometrics in the application.
 
-2) **Keycloak on real host** - Lissi wallet requires Keycloak running on the HTTPS and real host with the proper certificate. Here the example how to
-run Keycloak on real host with the use of https://localhost.run/docs/http-tunnels
-
-* Run this in the linux terminal `ssh -R 80:localhost:8080 localhost.run`
-
-* Copy/paste the URL from the terminal above and start Keycloak with something like:
+2) **Prepare Keycloak and bootstrap admin user** - Download and unzip Keycloak server, start it with: 
 ```
-./kc.sh start --hostname https://2ce816c8200c75.lhr.life --http-enabled true \
---proxy-headers xforwarded --features=oid4vc-vci,oid4vc-vci-preauth-code
+./kc.sh start-dev --features=oid4vc-vci,oid4vc-vci-preauth-code
 ```
+and go to http://localhost:8080 and bootstrap initial admin user.
 
-* Keycloak should be up and running on URL like https://2ce816c8200c75.lhr.life with the real certificate
-
-3) **Import the realm** from [fapi-playground](singleFile-realm.json) to your Keycloak. Most important points:
+3) **Import the realm** from [fapi-playground](singleFile-realm.json) to your Keycloak and kill the Keycloak server afterwards. Most important points:
 
 * Realm contains pre-defined OID4VCI client scope `education-certificate` 
 * It contains some pre-defined users. Especially `john-doh@localhost` used below, which has all required attributes (university and education-certificate).
@@ -53,9 +45,22 @@ already present in the mentioned realm. For the reference, here is the setup of 
     * Enable OID4VCI (in the tab "Advanced" in the admin console): `ON`
     * Client scope `Education-certificate` should be added as `optional` to the client
 
-4) **Pre-authorized code grant**
+3) **Keycloak on real host** - Lissi wallet requires Keycloak running on the HTTPS and real host with the proper certificate. Here the example how to
+   run Keycloak on real host with the use of https://localhost.run/docs/http-tunnels
 
-* Open URL similar to https://2ce816c8200c75.lhr.life/realms/test/account with browser on your laptop
+* Run this in the linux terminal `ssh -R 80:localhost:8080 localhost.run`
+
+* Copy/paste the URL from the terminal above and start Keycloak with something like:
+```
+./kc.sh start --hostname https://84ba0a0b80c27d.lhr.life --http-enabled true \
+--proxy-headers xforwarded --features=oid4vc-vci,oid4vc-vci-preauth-code
+```
+
+* Keycloak should be up and running on URL like https://84ba0a0b80c27d.lhr.life with the real certificate
+
+5) **Pre-authorized code grant**
+
+* Open URL similar to https://84ba0a0b80c27d.lhr.life/realms/test/account with browser on your laptop
 
 * After redirect to Keycloak, the login screen is being displayed and browser contains OIDC authentication URL. Add this parameter to the end of the browser URL and refresh the browser URL:
 ```
@@ -81,7 +86,7 @@ pre-authorized code token request and finally credential event). After restart o
 see the credential displayed successfully (Looks like the bug in the Lissi wallet that application restart is needed).
 
 
-5) **Authorization code grant**
+6) **Authorization code grant**
 
 * Same steps like for like "Pre-authorized grant", but use this `kc_action` for authorization_code (parameter "pre-authorized" is false within this request)
 
@@ -95,8 +100,7 @@ similarly like for pre-authorized grant. But restart of the wallet helped and ca
 
 NOTE (for the reference): Lissi wallet authorization_code uses PAR requests to start the authorization-code flow
 
-**TODO:** 
-* Use the latest lissi ID-wallet application
+**TODO:**
 * Make this working with JWT `proofs`
 
 ### Heidi wallet
