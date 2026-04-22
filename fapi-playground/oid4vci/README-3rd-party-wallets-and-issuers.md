@@ -130,8 +130,41 @@ pretty much similar we have for OID4VCI client scope and there are bit similar s
 in comparison to Keycloak. Important configuration options are "Credential identifier" (maps to `credential_configuration_id` as well as name of the client
 scope), user attributes to map to the credential, validity (30 days by default) and format (supported are `dc+sd-jwt` and `jwt_vc_json` like we have).
 
+* It is possible to create application of type `digital wallet application`. This is OIDC client with the possibility to link "Verifiable credential" templates,
+which can be requested during OIDC login with the use of `scope` parameter referencing the particular VC. So again similar to Keycloak.
 
-* WSO2 provide single credential offer for their credential for all users and clients. It can be obtained as an URL directly in the admin console. The URL is "static" URL with something like:
+  * When linking wallet application with the VC, it is possible to configure "Role based access control (RBAC)". This allows support
+    for the use-case like `User with role "student" is able to obtain VC of type "education-certificate" to the wallet application "my-wallet"`.
+
+* No `pre-authorized grant` support. No `issuer_state` parameter support for `authorization code` grant.
+
+* No support for for "personalized" credential offers for the concrete users and concrete clients. There is single credential offer
+for the specific credential type, which is supposed to be used by all users and wallets. It is single QR code for credential-type, which
+is supposed to be used by everyone. For the details, see below the section "WSO2 credential offer - details"
+
+* It is needed to use 3rd party QR code scanner as WSO2 console itself doesn't support built-in QR-code generator
+
+* Well-known URL available under https://localhost:9443/oid4vci/.well-known/openid-credential-issuer .
+
+* They support integration with some wallets (lissi, heidi, inji). All those wallets require pre-registration of the client
+with specific client_id and redirect_uri. But WSO2 support itself doesn't support setting of "client_id" directly in their
+admin console. It is needed to use REST API for it...
+
+* Supporting only jwt proof. No support for "attestation"
+
+* No support for "credential permissions" per user (Use-case like `User bob is able to obtain education-certificate credential` )
+ 
+* No support for "credential instances" (No tracking of issued VC at the WSO2 side)
+
+* More details in the verifiable credentials documentation:
+  * https://is.docs.wso2.com/en/next/guides/verifiable-credentials/ (Intro about protocol)
+  * https://is.docs.wso2.com/en/next/guides/verifiable-credentials/issue-vc/ (How to setup in WSO2)
+  * https://is.docs.wso2.com/en/next/references/concepts/oid4vci/ (More details about the protocol, requests etc)
+
+#### WSO2 credential offer - details
+
+* WSO2 provide single credential offer for their credential for all users and clients. It can be obtained as an URL directly in the WSO2 admin console.
+The URL is "static" URL with something like:
 ```
 openid-credential-offer://?credential_offer_uri=https://localhost:9443/oid4vci/credential-offer/48590b61-f6c8-4bdf-8b5b-132ad5ebfee9
 ```
@@ -150,27 +183,6 @@ When opening https://localhost:9443/oid4vci/credential-offer/48590b61-f6c8-4bdf-
   }
 }
 ```
-This means there are not concrete credential offers for the concrete clients.
-
-* It is needed to use 3rd party QR code scanner as WSO2 console itself doesn't support built-in QR-code generator
-
-* No `pre-authorized grant` support. No `issuer_state` parameter support for `authorization code` grant.
-
-* Well-known URL available under https://localhost:9443/oid4vci/.well-known/openid-credential-issuer .
-
-* They support integration with some wallets (lissi, heidi, inji). All those wallets require pre-registration of the client
-with specific client_id and redirect_uri. But WSO2 support itself doesn't support setting of "client_id" directly in their
-admin console. It is needed to use REST API for it...
-
-* Supporting only jwt proof. No support for "attestation"
-
-* No support for personalized "Credential offers", "credential permissions" or "credential instances" TODO: Check policies
-
-* More details in the verifiable credentials documentation:
-  * https://is.docs.wso2.com/en/next/guides/verifiable-credentials/ (Intro about protocol)
-  * https://is.docs.wso2.com/en/next/guides/verifiable-credentials/issue-vc/ (How to setup in WSO2)
-  * https://is.docs.wso2.com/en/next/references/concepts/oid4vci/ (More details about the protocol, requests etc)
-
 
 ### Authlete
 
