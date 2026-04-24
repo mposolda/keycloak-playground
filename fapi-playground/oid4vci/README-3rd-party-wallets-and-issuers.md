@@ -60,6 +60,9 @@ already present in the mentioned realm. For the reference, here is the setup of 
 
 5) **Pre-authorized code grant**
 
+This grant is not big priority as it is out of scope of OID4VCI preview feature (it has dedicated Keycloak feature `oid4vc-vci-preauth-code`). However
+it is slightly easier to make it working.
+
 * Open URL similar to https://84ba0a0b80c27d.lhr.life/realms/test/account with browser on your laptop
 
 * After redirect to Keycloak, the login screen is being displayed and browser contains OIDC authentication URL. Add this parameter to the end of the browser URL and refresh the browser URL:
@@ -98,7 +101,11 @@ see the credential displayed successfully (Looks like the bug in the Lissi walle
 login flow with the "authorization code" grant. After login of the user and confirm credential offer in the Lissi wallet, there are again errors
 similarly like for pre-authorized grant. But restart of the wallet helped and can see the credential.
 
-NOTE (for the reference): Lissi wallet authorization_code uses PAR requests to start the authorization-code flow
+**NOTE** (for the reference): Lissi wallet authorization_code uses PAR requests to start the authorization-code flow
+
+**Troubleshooting tips**: In case things don't work as expected, you can try to download the log from the lissi wallet mobile application as there 
+might be some useful info (i.e. what requests were sent, what was response status etc). Also might be useful to look at Keycloak server log
+or check Keycloak events in the admin console (they are saved by default for the `test` realm).
 
 **TODO:**
 * Make this working with JWT `proofs`
