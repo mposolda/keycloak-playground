@@ -687,6 +687,22 @@
       "credentialData" : "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
     } ],
     "disableableCredentialTypes" : [ ],
+    "verifiableCredentials" : [ {
+      "credentialScopeName" : "education-certificate",
+      "revision" : "47b31ec1-cf5f-c05c-4454-942d5fe059e8",
+      "createdDate" : 1781863528866,
+      "updatedDate" : 1781863528866,
+      "userAttributes" : {
+        "lastName" : [ "Doh" ],
+        "firstName" : [ "John" ],
+        "education-certificate-number" : [ "12345" ],
+        "university" : [ "Harvard university" ],
+        "locale" : [ ],
+        "email" : [ "john-doh@localhost" ],
+        "did" : [ ],
+        "username" : [ "john-doh@localhost" ]
+      }
+    } ],
     "requiredActions" : [ ],
     "realmRoles" : [ "user" ],
     "clientRoles" : {
@@ -993,8 +1009,8 @@
   }, {
     "id" : "75e654b8-d4cf-44f5-9242-9c1a46cd9424",
     "clientId" : "9c481dc3-2ad0-4fe0-881d-c32ad02fe0fc",
-    "name" : "",
-    "description" : "",
+    "name" : "Lissi ID Wallet",
+    "description" : "Client, which represents Lissi ID wallet",
     "rootUrl" : "",
     "adminUrl" : "",
     "baseUrl" : "",

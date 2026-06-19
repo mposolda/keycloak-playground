@@ -9,7 +9,7 @@ This document contains some notes for:
 
 ### Lissi Wallet
 
-It was possible to successfully integrate Keycloak nightly (from 2026-04-22) with Lissi ID Wallet android application with the use of both
+It was possible to successfully integrate Keycloak nightly (from 2026-06-20) with Lissi ID Wallet android application with the use of both
 `authorization_code` and `pre-authorized code` flows.
 
 * It seems that Lissi wallet still uses older version of OID4VCI specification (not the OID4VCI 1.0.Final).
@@ -20,9 +20,9 @@ It was possible to successfully integrate Keycloak nightly (from 2026-04-22) wit
 Keycloak side (See steps below for the details). It looks that same applies for some other wallets according to the [WSO2 documentation](https://is.docs.wso2.com/en/next/guides/verifiable-credentials/issue-vc/#tested-wallets), which describe
 some steps for the integration with those wallets.
 
-#### Steps for integration Keycloak 26.6.0 with Lissi ID Wallet
+#### Steps for integration Keycloak nightly (from 2026-06-20) with Lissi ID Wallet
 
-1) **Install Lissi ID Wallet app on the android phone**. Tested with version 3.1.3 (17277). Needed to setup PIN and biometrics in the application.
+1) **Install Lissi ID Wallet app on the android phone**. Tested with version 3.1.5 (18743). Needed to setup PIN and biometrics in the application.
 
 2) **Prepare Keycloak and bootstrap admin user** - Download and unzip Keycloak server, start it with: 
 ```
@@ -48,34 +48,74 @@ already present in the mentioned realm. For the reference, here is the setup of 
 4) **Keycloak on real host** - Lissi wallet requires Keycloak running on the HTTPS and real host with the proper certificate. Here the example how to
    run Keycloak on real host with the use of https://localhost.run/docs/http-tunnels
 
-* Run this in the linux terminal `ssh -R 80:localhost:8080 localhost.run`
+* Run this in the linux terminal `ssh -R 80:localhost:8080 localhost.run`. Wait some time (maybe a minute or so) until QR code with URL appears in the terminal
 
 * Copy/paste the URL from the terminal above and start Keycloak with something like:
 ```
-./kc.sh start --hostname https://84ba0a0b80c27d.lhr.life --http-enabled true \
+./kc.sh start --hostname https://371d3364d27d70.lhr.life --http-enabled true \
 --proxy-headers xforwarded --features=oid4vc-vci,oid4vc-vci-preauth-code
 ```
 
-* Keycloak should be up and running on URL like https://84ba0a0b80c27d.lhr.life with the real certificate
+* Keycloak should be up and running on URL like https://371d3364d27d70.lhr.life with the real certificate
 
-5) **Pre-authorized code grant**
+
+5) **Authorization code grant**
+
+* Open URL similar to https://371d3364d27d70.lhr.life/realms/test/account with browser on your laptop
+
+* Fill username/password `john-doh@localhost` / `password`
+
+* After login to the account console, go to the tab `Verifiable credentials` and find the `Education certificate` credential. This user
+has pre-created education-certificate credential from realm import. For the other users, administrator needs to pre-create credential
+before particular user can issue it to his wallet.
+
+* Click to "Issue to wallet"
+
+* Scan the displayed QR code with the Lissi ID wallet application from your mobile phone and accept the offer
+
+* After scan the QR code, it is also needed to authenticate Keycloak user in the mobile browser. As `authorization code` grant runs the full OIDC
+login flow with the "authorization code" grant. After login of the user and confirm credential offer in the Lissi wallet, there are again errors
+similarly like for pre-authorized grant. But restart of the wallet helped and can see the credential.
+
+**NOTE** (for the reference): Lissi wallet authorization_code uses PAR requests to start the authorization-code flow
+
+* Confirm the credential offer for education-certificate in your mobile. At this point, there were some errors displayed in the application,
+however when checking Keycloak events in the admin console, I can see that all events are successful (especially credential-offer creation events,
+token request and finally credential event). After restart of the Lissi ID-wallet application on my mobile, I can
+see the credential displayed successfully (Looks like the bug in the Lissi wallet that application restart is needed).
+
+* Same steps like for like "Pre-authorized grant", but use this `kc_action` for authorization_code (parameter "pre-authorized" is false within this request)
+
+```
+&kc_action=verifiable_credential_offer:eyJjcmVkZW50aWFsX2NvbmZpZ3VyYXRpb25faWQiOiJlZHVjYXRpb24tY2VydGlmaWNhdGUtY29uZmlnLWlkIiwiY2xpZW50X2lkIjoiOWM0ODFkYzMtMmFkMC00ZmUwLTg4MWQtYzMyYWQwMmZlMGZjIiwicHJlX2F1dGhvcml6ZWQiOmZhbHNlfQ==
+```
+
+**Troubleshooting tips**: In case things don't work as expected, you can try to download the log from the lissi wallet mobile application as there 
+might be some useful info (i.e. what requests were sent, what was response status etc). Also might be useful to look at Keycloak server log
+or check Keycloak events in the admin console (they are saved by default for the `test` realm).
+
+**TODO:**
+* Make this working with JWT `proofs`
+
+6) **Pre-authorized code grant**
 
 This grant is not big priority as it is out of scope of OID4VCI preview feature (it has dedicated Keycloak feature `oid4vc-vci-preauth-code`). However
 it is slightly easier to make it working.
 
-* Open URL similar to https://84ba0a0b80c27d.lhr.life/realms/test/account with browser on your laptop
+* Logout from account console on your laptop (from previous step) and make sure that login screen is displayed. It should
+display `client_id=account-console` in the browser URL
 
-* After redirect to Keycloak, the login screen is being displayed and browser contains OIDC authentication URL. Add this parameter to the end of the browser URL and refresh the browser URL:
+* Add this parameter to the end of the browser URL and refresh the browser URL:
 ```
-&kc_action=verifiable_credential_offer:eyJjcmVkZW50aWFsX2NvbmZpZ3VyYXRpb25faWQiOiJlZHVjYXRpb24tY2VydGlmaWNhdGUtY29uZmlnLWlkIiwiY2xpZW50X2lkIjoiOWM0ODFkYzMtMmFkMC00ZmUwLTg4MWQtYzMyYWQwMmZlMGZjIiwicHJlX2F1dGhvcml6ZWQiOnRydWV9
+&kc_action=verifiable_credential_offer:eyJjcmVkZW50aWFsQ29uZmlndXJhdGlvbklkIjoiZWR1Y2F0aW9uLWNlcnRpZmljYXRlLWNvbmZpZy1pZCIsImNsaWVudElkIjoiOWM0ODFkYzMtMmFkMC00ZmUwLTg4MWQtYzMyYWQwMmZlMGZjIiwicHJlQXV0aG9yaXplZCI6dHJ1ZX0=
 ```
-    
-   NOTE: The `kc_action` parameter above is parameterized AIA for displaying credential-offer. The parameter is base64-encoded value of the credential-offer config, which looks like this (in the plain code):
+
+NOTE: The `kc_action` parameter above is parameterized AIA for displaying credential-offer. The parameter is base64-encoded value of the credential-offer config, which looks like this (in the plain code):
 ```
 {
-  "credential_configuration_id":"education-certificate-config-id",
-  "client_id":"9c481dc3-2ad0-4fe0-881d-c32ad02fe0fc",
-  "pre_authorized":true
+  "credentialConfigurationId":"education-certificate-config-id",
+  "clientId":"9c481dc3-2ad0-4fe0-881d-c32ad02fe0fc",
+  "preAuthorized":true
 }
 ```
 
@@ -84,31 +124,12 @@ it is slightly easier to make it working.
 * Scan the displayed QR code with the Lissi ID wallet application from your mobile phone
 
 * Confirm the credential offer for education-certificate in your mobile. At this point, there were some errors displayed in the application,
-however when checking Keycloak events in the admin console, I can see that all events are successful (especially credential-offer creation events, 
-pre-authorized code token request and finally credential event). After restart of the Lissi ID-wallet application on my mobile, I can
-see the credential displayed successfully (Looks like the bug in the Lissi wallet that application restart is needed).
+  however when checking Keycloak events in the admin console, I can see that all events are successful (especially credential-offer creation events,
+  pre-authorized code token request and finally credential event). After restart of the Lissi ID-wallet application on my mobile, I can
+  see the credential displayed successfully (Looks like the bug in the Lissi wallet that application restart is needed).
 
-
-6) **Authorization code grant**
-
-* Same steps like for like "Pre-authorized grant", but use this `kc_action` for authorization_code (parameter "pre-authorized" is false within this request)
-
-```
-&kc_action=verifiable_credential_offer:eyJjcmVkZW50aWFsX2NvbmZpZ3VyYXRpb25faWQiOiJlZHVjYXRpb24tY2VydGlmaWNhdGUtY29uZmlnLWlkIiwiY2xpZW50X2lkIjoiOWM0ODFkYzMtMmFkMC00ZmUwLTg4MWQtYzMyYWQwMmZlMGZjIiwicHJlX2F1dGhvcml6ZWQiOmZhbHNlfQ==
-```
-
-* After scan the QR code, it is also needed to authenticate Keycloak user in the mobile browser. As `authorization code` grant runs the full OIDC
-login flow with the "authorization code" grant. After login of the user and confirm credential offer in the Lissi wallet, there are again errors
-similarly like for pre-authorized grant. But restart of the wallet helped and can see the credential.
-
-**NOTE** (for the reference): Lissi wallet authorization_code uses PAR requests to start the authorization-code flow
-
-**Troubleshooting tips**: In case things don't work as expected, you can try to download the log from the lissi wallet mobile application as there 
-might be some useful info (i.e. what requests were sent, what was response status etc). Also might be useful to look at Keycloak server log
-or check Keycloak events in the admin console (they are saved by default for the `test` realm).
-
-**TODO:**
-* Make this working with JWT `proofs`
+* **NOTE**: For pre-authorized code, it is not needed to authenticate user on your mobile phone. As the assumption is, that 
+he was pre-authenticated already on the laptop.
 
 ### Heidi wallet
 
