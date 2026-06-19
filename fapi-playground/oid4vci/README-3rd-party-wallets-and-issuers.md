@@ -84,11 +84,6 @@ however when checking Keycloak events in the admin console, I can see that all e
 token request and finally credential event). After restart of the Lissi ID-wallet application on my mobile, I can
 see the credential displayed successfully (Looks like the bug in the Lissi wallet that application restart is needed).
 
-* Same steps like for like "Pre-authorized grant", but use this `kc_action` for authorization_code (parameter "pre-authorized" is false within this request)
-
-```
-&kc_action=verifiable_credential_offer:eyJjcmVkZW50aWFsX2NvbmZpZ3VyYXRpb25faWQiOiJlZHVjYXRpb24tY2VydGlmaWNhdGUtY29uZmlnLWlkIiwiY2xpZW50X2lkIjoiOWM0ODFkYzMtMmFkMC00ZmUwLTg4MWQtYzMyYWQwMmZlMGZjIiwicHJlX2F1dGhvcml6ZWQiOmZhbHNlfQ==
-```
 
 **Troubleshooting tips**: In case things don't work as expected, you can try to download the log from the lissi wallet mobile application as there 
 might be some useful info (i.e. what requests were sent, what was response status etc). Also might be useful to look at Keycloak server log
