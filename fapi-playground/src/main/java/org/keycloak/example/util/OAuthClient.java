@@ -2,6 +2,7 @@ package org.keycloak.example.util;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.keycloak.OAuth2Constants;
+import org.keycloak.common.util.UriUtils;
 import org.keycloak.testsuite.util.oauth.AbstractOAuthClient;
 import org.keycloak.testsuite.util.oauth.OAuthClientConfig;
 
@@ -14,7 +15,8 @@ public class OAuthClient extends AbstractOAuthClient<OAuthClient> {
         super(baseUrl, httpClient, null);
 
         config = new OAuthClientConfig()
-                .responseType(OAuth2Constants.CODE);
+                .responseType(OAuth2Constants.CODE)
+                .origin(UriUtils.getOrigin(baseUrl));
     }
 
     @Override

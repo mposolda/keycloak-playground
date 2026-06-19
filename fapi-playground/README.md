@@ -167,6 +167,9 @@ and "Start example app and deploy the example". The additional steps are specifi
 **NOTE:** The OID4VCI feature is still under development in Keycloak. So please note that this demo will also probably change
 in the future. Lots of the used flows might be done differently in the future.
 
+**NOTE:** Current version of this demo in this branch works with the latest nightly build only instead of the latest Keycloak release.
+See below in the section "Test with latest Keycloak nightly"
+
 1) It is expected to import realm `test` from this project with some pre-configured client scopes and stuff.
 Please login to the admin console, delete realm `test` (if you have existing realm from previous demos) and import realm
 from the file [oid4vci/singleFile-realm.json](oid4vci/singleFile-realm.json) .
@@ -197,20 +200,28 @@ you selected `Education Certificate` in previous step (you can use any random va
 and due the fact that `education-certificate` scope was added as a request parameter to OIDC authentication request together
 with authorization details
 
-3) Now you can click `Credential request`, which should fail as user missing the mandatory attribute `education-certificate-number`.
+3) After performing this, you will see error with status 400 in the token-request because user `john` does not have requested verifiable credential.
+So next step, is to add the `Verifiable credential` to the user. In the other tab in the admin console, admin can click to user `john`
+-> tab `Verifiable credentials` -> Button `create verifiable credential` and create the credential for the requested scope (EG. education-certificate)
+for the user `john`. Then after retry from the step 1, the token response should be successful. 
 
-4) In the other tab in the admin console, admin is able to manually update user `john` and fill the `Education certificate number` for him 
+4) Now you can click `Credential request`, which should fail as user missing the mandatory attribute `education-certificate-number`.
+
+5) In the other tab in the admin console, admin is able to manually update user `john` and fill the `Education certificate number` for him 
 (You can again use any number you prefer) and then save user.
 In reality, assumption is, that there should be some "business process" needed for this (EG. user `john` uploads his university
 diploma somewhere to be able to share it with the administrator)
 
-5) Go back to fapi-demo and click `Credential request` again. Now credential should be successfully issued for `john` .
+6) Go back to fapi-demo and click `Credential request` again. Now credential should be successfully issued for `john` .
 
-6) See button `Show last verifiable credential` to see the parsed sd-jwt data.
+7) See button `Show last verifiable credential` to see the parsed sd-jwt data.
  
-7) Then fill `Claims to present (divided by comma):`
+8) Then fill `Claims to present (divided by comma):`
 with some claims (EG. `university,firstName,lastName`) and click `Create presentation from last verifiable credential`.
 You can see sd-jwt with only subset of the claims.
+
+9) In the admin console, you can click on the user `john` -> tab `Verifiable credentials` -> tab `View issued credentials`
+and seeing that there is new issued-credential
 
 #### Flow with pre-authorized grant and application-initiated action
 

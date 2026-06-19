@@ -18,7 +18,7 @@ public class OID4VCIContext {
     private String claimsToPresent;
     private String preauthzClientId;
     private String preauthzUsername;
-    private String preauthzOffer;
+    private String configuredCredentialOffer;
 
     // Obtained from requests
     private CredentialIssuer credentialIssuerMetadata;
@@ -68,12 +68,12 @@ public class OID4VCIContext {
         this.preauthzUsername = preauthzUsername;
     }
 
-    public String getPreauthzOffer() {
-        return preauthzOffer;
+    public String getConfiguredCredentialOffer() {
+        return configuredCredentialOffer;
     }
 
-    public void setPreauthzOffer(String preauthzOffer) {
-        this.preauthzOffer = preauthzOffer;
+    public void setConfiguredCredentialOffer(String configuredCredentialOffer) {
+        this.configuredCredentialOffer = configuredCredentialOffer;
     }
 
     public List<OID4VCCredential> getAvailableCredentials() {
@@ -144,7 +144,7 @@ public class OID4VCIContext {
         claimsToPresent = null;
         preauthzClientId = null;
         preauthzUsername = null;
-        preauthzOffer = null;
+        configuredCredentialOffer = null;
     }
 
     public static class OID4VCCredential {

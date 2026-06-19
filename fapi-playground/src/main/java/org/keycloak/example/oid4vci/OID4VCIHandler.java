@@ -111,11 +111,13 @@ public class OID4VCIHandler implements ActionHandler {
     }
 
     private InfoBean handleAuthzCodeFlow(ActionHandlerContext actionContext) {
-        log.infof("handleAuthzCodeFlow");
         SessionData session = actionContext.getSession();
 
         OID4VCIContext oid4VCIContext = session.getOrCreateOID4VCIContext();
         collectOID4VCIConfigParams(actionContext.getParams(), oid4VCIContext);
+
+        String configuredCredentialOfferURI = oid4VCIContext.getConfiguredCredentialOffer();
+        log.infof("handle authorization code flow. Credential offer from the config: %s", configuredCredentialOfferURI);
 
         if (oid4VCIContext.getCredentialIssuerMetadata() == null) {
             return new InfoBean("No credential issuer metadata", "Please first obtain OID4VCI credential issuer metadata from OID4VCI well-known endpoint");
@@ -129,26 +131,50 @@ public class OID4VCIHandler implements ActionHandler {
         SupportedCredentialConfiguration supportedCredConfig = credIssuerMetadata.getCredentialsSupported().get(oid4VCIContext.getSelectedCredentialId());
         String scope = supportedCredConfig.getScope();
 
-        String origLoginUrl = LoginUtil.getAuthorizationRequestUrl(session.getOidcConfigContext(), actionContext.getUriInfo(), scope).build();
+        InfoBean info = new InfoBean();
 
-        /// Add authorization_details to it
-        List<OID4VCAuthorizationDetail> authzDetails = getAuthorizationDetailsForAuthzCodeFlow(credIssuerMetadata, oid4VCIContext.getSelectedCredentialId());
         try {
+            LoginUrlBuilder loginUrlBuilder = LoginUtil.getAuthorizationRequestUrl(session.getOidcConfigContext(), actionContext.getUriInfo(), scope);
+
+            // The field "Credential offer" was configured
+            if (StringUtil.isNotBlank(configuredCredentialOfferURI)) {
+                CredentialOfferURI credentialOfferUri = getCredentialOfferUri(configuredCredentialOfferURI);
+                if (credentialOfferUri == null) {
+                    return new InfoBean("No credential offer", "Was not able to parse credential offer from the provided Credential offer: " + configuredCredentialOfferURI);
+                }
+                log.infof("Calling uri '%s' to retrive credential offer", credentialOfferUri.getCredentialOfferUri());
+
+                WebRequestContext<CredentialOfferRequest, CredentialOfferResponse> credentialOffer = invokeCredentialOfferURI(credentialOfferUri);
+                oid4VCIContext.setCredentialsOffer(credentialOffer.getResponse().getCredentialsOffer());
+
+                String issuerState = credentialOffer.getResponse().getCredentialsOffer().getIssuerState();
+                loginUrlBuilder.issuerState(issuerState);
+
+                info.addOutput("Credential Offer request", JsonSerialization.writeValueAsPrettyString(OAuthClientUtil.getRequestInfo(credentialOffer.getRequest())));
+                info.addOutput("Credential Offer response", JsonSerialization.writeValueAsPrettyString(credentialOffer.getResponse()));
+            }
+
+            String origLoginUrl = loginUrlBuilder.build();
+
+            /// Add authorization_details to it
+            List<OID4VCAuthorizationDetail> authzDetails = getAuthorizationDetailsForAuthzCodeFlow(credIssuerMetadata, oid4VCIContext.getSelectedCredentialId());
+
             String authzDetailsStr = JsonSerialization.writeValueAsString(authzDetails);
 
             String loginUrl = origLoginUrl + "&" + OAuth2Constants.AUTHORIZATION_DETAILS + "=" + URLEncoder.encode(authzDetailsStr, StandardCharsets.UTF_8);
 
             actionContext.getFmAttributes().put(Constants.AUTH_REQUEST_URL, loginUrl);
-                return new InfoBean(
-                        "Authorization details for OIDC authentication request", JsonSerialization.writeValueAsPrettyString(authzDetails),
-                        "OIDC Authentication Request URL", loginUrl);
+
+            info.addOutput("Authorization details for OIDC authentication request", JsonSerialization.writeValueAsPrettyString(authzDetails));
+            info.addOutput("OIDC Authentication Request URL", loginUrl);
+            return info;
         } catch (IOException ioe) {
             throw new MyException("I/O exception when encode/decode authz details", ioe);
         }
     }
 
     private List<OID4VCAuthorizationDetail> getAuthorizationDetailsForAuthzCodeFlow(CredentialIssuer credIssuerMetadata, String selectedCredentialConfigId) {
-        List<String> expectedMandatoryClaims = "education-certificate-config-id".equals(selectedCredentialConfigId) ? List.of("university", "education-certificate-number")
+        List<String> expectedMandatoryClaims = "education-certificate-config-id".equals(selectedCredentialConfigId) || "education-certificate".equals(selectedCredentialConfigId) ? List.of("university", "education-certificate-number")
                 : Collections.emptyList(); // TODO: Maybe update these to not be hardcoded this way...
 
         SupportedCredentialConfiguration supportedCredConfig = credIssuerMetadata.getCredentialsSupported().get(selectedCredentialConfigId);
@@ -233,7 +259,7 @@ public class OID4VCIHandler implements ActionHandler {
         OID4VCIContext oid4VCIContext = session.getOrCreateOID4VCIContext();
         collectOID4VCIConfigParams(actionContext.getParams(), oid4VCIContext);
 
-        String credentialOfferFullUri = oid4VCIContext.getPreauthzOffer();
+        String credentialOfferFullUri = oid4VCIContext.getConfiguredCredentialOffer();
         if (StringUtil.isBlank(credentialOfferFullUri)) {
             return new InfoBean("No credential offer", "Need to provide parameter: Credential offer (for pre-authorized grant with offer)");
         }
@@ -304,7 +330,7 @@ public class OID4VCIHandler implements ActionHandler {
         oid4vciCtx.setClaimsToPresent(claimsToPresent);
         oid4vciCtx.setPreauthzClientId(preauthzClientId);
         oid4vciCtx.setPreauthzUsername(preauthzUsername);
-        oid4vciCtx.setPreauthzOffer(preauthzOffer);
+        oid4vciCtx.setConfiguredCredentialOffer(preauthzOffer);
     }
 
     private List<OID4VCIContext.OID4VCCredential> getAvailableCredentials(CredentialIssuer credIssuer) {

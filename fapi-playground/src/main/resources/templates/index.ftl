@@ -155,7 +155,7 @@
                     </select>
                 </td>
             </tr>
-            <tr>
+<!--            <tr>
                 <td>PreAuthorized: </td>
                 <td>
                     <#if oid4vciCtx.preAuthorized>
@@ -165,10 +165,11 @@
                     </#if>
                 </td>
             </tr>
+-->
             <tr><td>Claims to present (divided by comma): </td><td><input id="oid4ci-claims-to-present" name="oid4ci-claims-to-present" value="${oid4vciCtx.claimsToPresent!}"></td></tr>
 <!--            <tr><td>Client ID (for pre-authorized grant): </td><td><input id="oid4ci-preauthz-client_id" name="oid4ci-preauthz-client_id" value="${oid4vciCtx.preauthzClientId!}"></td></tr>-->
-            <tr><td>Username (for pre-authorized grant with REST): </td><td><input id="oid4ci-preauthz-username" name="oid4ci-preauthz-username" value="${oid4vciCtx.preauthzUsername!}"></td></tr>
-            <tr><td>Credential offer (for pre-authorized grant with offer): </td><td><input id="oid4ci-preauthz-offer" name="oid4ci-preauthz-offer" value="${oid4vciCtx.preauthzOffer!}"></td></tr>
+<!--            <tr><td>Username (for pre-authorized grant with REST): </td><td><input id="oid4ci-preauthz-username" name="oid4ci-preauthz-username" value="${oid4vciCtx.preauthzUsername!}"></td></tr>-->
+            <tr><td>Credential offer URL: </td><td><input id="oid4ci-preauthz-offer" name="oid4ci-preauthz-offer" value="${oid4vciCtx.preauthzOffer!}"></td></tr>
         </table>
     </div>
     <br />
@@ -177,7 +178,7 @@
         <#if oid4vciCtx.credentialIssuerMetadata??>
             <button onclick="submitWithAction('oid4vci-authz-code-flow')">Cred. issuance - Authorization code grant</button>
         </#if>
-        <#if oid4vciCtx.credentialIssuerMetadata?? && appState.authenticated>
+<!--         <#if oid4vciCtx.credentialIssuerMetadata?? && appState.authenticated>
             <button onclick="submitWithAction('oid4vci-pre-authz-code-flow')">Cred. issuance - Pre-authorized code grant (REST endpoint flow)</button>
         </#if>
         <#if oid4vciCtx.credentialIssuerMetadata??>
@@ -186,6 +187,7 @@
         <#if appState.authenticated>
             <button onclick="submitWithAction('oid4vci-pre-authz-code-with-offer')">Cred. issuance - Pre-authorized code grant (with offer)</button>
         </#if>
+-->
         <#if oid4vciCtx.accessToken??>
             <button onclick="submitWithAction('oid4vci-credential-request')">Credential request</button>
         </#if>
