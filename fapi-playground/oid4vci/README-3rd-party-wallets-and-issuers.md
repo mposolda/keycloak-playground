@@ -123,8 +123,9 @@ NOTE: The `kc_action` parameter above is parameterized AIA for displaying creden
   pre-authorized code token request and finally credential event). After restart of the Lissi ID-wallet application on my mobile, I can
   see the credential displayed successfully (Looks like the bug in the Lissi wallet that application restart is needed).
 
-* **NOTE**: For pre-authorized code, it is not needed to authenticate user on your mobile phone. As the assumption is, that 
-he was pre-authenticated already on the laptop.
+* **NOTE**: For pre-authorized code, it is not needed to authenticate user on your mobile phone. The pre-authorized grant
+does not support wallets to integrate with browser and redirect to the login screen of Keycloak. As the assumption is, that
+he was pre-authenticated already on the laptop and not needed to authenticate him again with his grant.
 
 ### Heidi wallet
 
