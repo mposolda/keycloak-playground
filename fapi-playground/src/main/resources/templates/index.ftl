@@ -188,7 +188,7 @@
             <button onclick="submitWithAction('oid4vci-pre-authz-code-with-offer')">Cred. issuance - Pre-authorized code grant (with offer)</button>
         </#if>
 -->
-        <#if oid4vciCtx.accessToken??>
+        <#if appState.authenticated && oid4vciCtx.authzDetails??>
             <button onclick="submitWithAction('oid4vci-credential-request')">Credential request</button>
         </#if>
         <#if oid4vciCtx.credentialResponse??>

@@ -26,7 +26,6 @@ public class OID4VCIContext {
     private CredentialsOffer credentialsOffer;
     private OID4VCAuthorizationDetail authzDetails;
     private CredentialResponse credentialResponse;
-    private String accessToken;
 
     public String getSelectedCredentialId() {
         return selectedCredentialId;
@@ -124,21 +123,12 @@ public class OID4VCIContext {
         this.credentialResponse = credentialResponse;
     }
 
-    public String getAccessToken() {
-        return accessToken;
-    }
-
-    public void setAccessToken(String accessToken) {
-        this.accessToken = accessToken;
-    }
-
     public void cleanup() {
         credentialOfferURI = null;
         preAuthorized = false;
         credentialsOffer = null;
         authzDetails = null;
         credentialResponse = null;
-        accessToken = null;
 
         // Cleanup also some config
         claimsToPresent = null;

@@ -226,6 +226,11 @@ You can see sd-jwt with only subset of the claims.
 9) In the admin console, you can click on the user `john` -> tab `Verifiable credentials` -> option `View issued credentials` for `education-certificate`
 and seeing that there is new issued-credential
 
+10) Refresh tokens demo: Refresh tokens are tight to the issued-verifiable-credential rather than to user session. For demo this:
+10.a) In admin console, you can click on the user `john` -> tab `Sessions` -> and find the appropriate session and logout it
+10.b) In the demo, you can click "Refresh token" (in the OIDC section) and check that refresh token is successful - even if user session was logged out. Also it is still possible to do `Credential request` to obtain refreshed verifiable credential
+10.c) Find the appropriate issued verifiable credential and revoke tab (See step 9 for how to find it). Once this is done, it is not possible to refresh anymore. Also not possible to obtain verifiable credential
+
 #### Flow with pre-authorized grant and application-initiated action
 
 NOTE: This is temporarily disabled. It does not work as it supports some pieces in Keycloak, which are experimental and were changed in the Keycloak in the meantime.

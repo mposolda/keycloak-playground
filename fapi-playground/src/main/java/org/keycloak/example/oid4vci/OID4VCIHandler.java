@@ -80,8 +80,6 @@ public class OID4VCIHandler implements ActionHandler {
         }
         OID4VCIContext oid4vciCtx = session.getOrCreateOID4VCIContext();
         oid4vciCtx.setAuthzDetails(authzDetails.get(0));
-
-        oid4vciCtx.setAccessToken(accessTokenResponse.getAccessToken());
     }
 
     @Override
@@ -411,8 +409,8 @@ public class OID4VCIHandler implements ActionHandler {
             OID4VCIContext oid4vciCtx = session.getOrCreateOID4VCIContext();
             oid4vciCtx.setAuthzDetails(authzDetails.get(0));
 
-            // Save last access_token
-            oid4vciCtx.setAccessToken(tokenResponse.getAccessToken());
+            // Save last access_token TODO: Should be done differently as accessToken is saved in the OIDC context
+            // oid4vciCtx.setAccessToken(tokenResponse.getAccessToken());
 
             return new WebRequestContext<>(preAuthzGrantRequest, tokenResponse);
         } catch (IOException ioe) {
@@ -420,12 +418,12 @@ public class OID4VCIHandler implements ActionHandler {
         }
     }
 
-    private static WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> triggerCredentialRequest(OID4VCIContext oid4VCIContext) {
+    private static WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> triggerCredentialRequest(OID4VCIContext oid4VCIContext, String accessToken) {
         OAuthClient oauth = Services.instance().getOauthClient();
         try {
             Oid4vcCredentialRequest credentialRequest = oauth.oid4vc().credentialRequest()
                     .credentialIdentifier(oid4VCIContext.getAuthzDetails().getCredentialIdentifiers().get(0))
-                    .bearerToken(oid4VCIContext.getAccessToken());
+                    .bearerToken(accessToken);
             Oid4vcCredentialResponse credentialResponse = credentialRequest.send();
             MyOid4vcCredentialResponse credResponse = new MyOid4vcCredentialResponse(credentialResponse);
             return new WebRequestContext<>(credentialRequest, credResponse);
@@ -436,14 +434,14 @@ public class OID4VCIHandler implements ActionHandler {
 
     private InfoBean credentialRequest(ActionHandlerContext actionContext) {
         OID4VCIContext oid4vciCtx = actionContext.getSession().getOrCreateOID4VCIContext();
-        String oid4vcAccessToken = oid4vciCtx.getAccessToken();
+        String oid4vcAccessToken = actionContext.getSession().getTokenRequestCtx().getResponse().getAccessToken();
 
         if (oid4vcAccessToken == null) {
             return new InfoBean("No OID4VCI access token", "No access token capable of doing OID4VCI credential request. Please start OID4VCI authorization-code or pre-authorization code grant");
         }
 
         try {
-            WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> credentialResponse = triggerCredentialRequest(oid4vciCtx);
+            WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> credentialResponse = triggerCredentialRequest(oid4vciCtx, oid4vcAccessToken);
             Map<String, Object> credRequest = OAuthClientUtil.getRequestInfo(credentialResponse.getRequest());
             credRequest.put("Body", credentialResponse.getRequest().getCredentialRequest());
 
