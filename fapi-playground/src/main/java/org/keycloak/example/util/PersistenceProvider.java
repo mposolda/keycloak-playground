@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.jboss.logging.Logger;
 import org.keycloak.common.util.PemUtils;
 import org.keycloak.crypto.KeyUse;
+import org.keycloak.crypto.KeyWrapper;
+import org.keycloak.example.oid4vci.OID4VCIContext;
 import org.keycloak.representations.oidc.OIDCClientRepresentation;
 
 import java.io.File;
@@ -23,7 +25,8 @@ public class PersistenceProvider {
     private static final Logger log = Logger.getLogger(PersistenceProvider.class);
 
     private static final String DATA_DIR = "data";
-    private static final String CLIENT_DATA_FILE = DATA_DIR + "/client-data.json";
+    private static final String CLIENT_DATA_FILE      = DATA_DIR + "/client-data.json";
+    private static final String ATTESTATION_DATA_FILE = DATA_DIR + "/attestation-data.json";
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -141,6 +144,70 @@ public class PersistenceProvider {
             log.infof("Persisted session data to %s", CLIENT_DATA_FILE);
         } catch (Exception e) {
             log.warnf(e, "Failed to persist session data to %s", CLIENT_DATA_FILE);
+        }
+    }
+
+    /**
+     * Persists the attestation key from {@code oid4vciCtx} to {@code data/attestation-data.json}.
+     * Called each time a new attestation key is generated.
+     */
+    public static void saveAttestationKey(OID4VCIContext oid4vciCtx) {
+        KeyWrapper key = oid4vciCtx.getAttestationKey();
+        if (key == null) {
+            return;
+        }
+        try {
+            File dataDir = new File(DATA_DIR);
+            if (!dataDir.exists()) {
+                dataDir.mkdirs();
+            }
+
+            ObjectNode root = MAPPER.createObjectNode();
+            root.put("kid",       key.getKid());
+            root.put("algorithm", key.getAlgorithm());
+            root.put("keyType",   key.getType());
+            root.put("privateKey", PemUtils.encodeKey(key.getPrivateKey()));
+            root.put("publicKey",  PemUtils.encodeKey(key.getPublicKey()));
+
+            MAPPER.writerWithDefaultPrettyPrinter().writeValue(new File(ATTESTATION_DATA_FILE), root);
+            log.infof("Persisted attestation key to %s", ATTESTATION_DATA_FILE);
+        } catch (Exception e) {
+            log.warnf(e, "Failed to persist attestation key to %s", ATTESTATION_DATA_FILE);
+        }
+    }
+
+    /**
+     * Loads the attestation key from {@code data/attestation-data.json} (if present) into
+     * {@code oid4vciCtx}. Called once at application startup.
+     */
+    public static void loadAttestationKey(OID4VCIContext oid4vciCtx) {
+        File file = new File(ATTESTATION_DATA_FILE);
+        if (!file.exists()) {
+            log.infof("Attestation data file does not exist yet. Skip loading");
+            return;
+        }
+
+        try {
+            ObjectNode root = (ObjectNode) MAPPER.readTree(file);
+
+            String kid       = root.get("kid").asText();
+            String algorithm = root.get("algorithm").asText();
+            String keyType   = root.get("keyType").asText();
+            PrivateKey privateKey = PemUtils.decodePrivateKey(root.get("privateKey").asText());
+            PublicKey  publicKey  = PemUtils.decodePublicKey(root.get("publicKey").asText(), keyType);
+
+            KeyWrapper kw = new KeyWrapper();
+            kw.setKid(kid);
+            kw.setAlgorithm(algorithm);
+            kw.setType(keyType);
+            kw.setUse(KeyUse.SIG);
+            kw.setPrivateKey(privateKey);
+            kw.setPublicKey(publicKey);
+
+            oid4vciCtx.setAttestationKey(kw);
+            log.infof("Loaded persisted attestation key (kid=%s) from %s", kid, file.getAbsolutePath());
+        } catch (Exception e) {
+            log.warnf(e, "Failed to load attestation key from %s — starting without attestation key", file.getAbsolutePath());
         }
     }
 }

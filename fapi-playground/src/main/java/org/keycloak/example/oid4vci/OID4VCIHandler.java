@@ -532,6 +532,7 @@ public class OID4VCIHandler implements ActionHandler {
         OID4VCIContext oid4vciCtx = actionContext.getSession().getOrCreateOID4VCIContext();
         KeyWrapper newKey = ProofUtil.createEcKeyPair();
         oid4vciCtx.setAttestationKey(newKey);
+        PersistenceProvider.saveAttestationKey(oid4vciCtx);
 
         try {
             JWK publicJwk = JWKBuilder.create().ec(newKey.getPublicKey());

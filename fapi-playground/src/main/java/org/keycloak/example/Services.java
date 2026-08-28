@@ -51,6 +51,7 @@ public class Services {
     private static SessionData createSession() {
         SessionData s = new SessionData();
         PersistenceProvider.load(s);
+        PersistenceProvider.loadAttestationKey(s.getOrCreateOID4VCIContext());
         return s;
     }
 
