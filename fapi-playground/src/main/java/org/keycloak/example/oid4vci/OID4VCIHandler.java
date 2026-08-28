@@ -422,22 +422,39 @@ public class OID4VCIHandler implements ActionHandler {
     }
 
     /**
-     * Carries optional proof-related display details back from {@link #triggerCredentialRequest}.
+     * Carries data related to credential request and response (including used proofs, nonces etc)
      */
-    private record ProofDisplayDetails(
-            Map<String, Object> nonceRequest,
-            String nonceResponse,
-            String proofType,
-            String proofJwt
-    ) {}
+    private static class CredentialRequestFullContext {
 
-    private static WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> triggerCredentialRequest(
-            OID4VCIContext oid4VCIContext, String accessToken, ProofDisplayDetails[] proofDetailsOut) {
+        WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> credentialRequestCtx;
+        Map<String, Object> nonceRequest;
+        String nonceResponse;
+        String proofType;
+        String proofJwt;
+
+        public void setCredentialRequestContext(WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> credentialRequestCtx) {
+            this.credentialRequestCtx = credentialRequestCtx;
+        }
+
+        public void setProofContext(Map<String, Object> nonceRequest, String nonceResponse, String proofType, String proofJwt) {
+            this.nonceRequest = nonceRequest;
+            this.nonceResponse = nonceResponse;
+            this.proofType = proofType;
+            this.proofJwt = proofJwt;
+        }
+
+    };
+
+
+    private static CredentialRequestFullContext triggerCredentialRequest(
+            OID4VCIContext oid4VCIContext, String accessToken) {
         OAuthClient oauth = Services.instance().getOauthClient();
         try {
             Oid4vcCredentialRequest credentialRequest = oauth.oid4vc().credentialRequest()
                     .credentialIdentifier(oid4VCIContext.getAuthzDetails().getCredentialIdentifiers().get(0))
                     .bearerToken(accessToken);
+
+            CredentialRequestFullContext result = new CredentialRequestFullContext();
 
             String proofType = oid4VCIContext.getProofType();
             if (proofType != null && !"none".equals(proofType)) {
@@ -450,20 +467,20 @@ public class OID4VCIHandler implements ActionHandler {
                 credentialRequest.proofs(proofs);
                 log.infof("Attaching '%s' proof to credential request (c_nonce obtained from nonce endpoint)", proofType);
 
-                if (proofDetailsOut != null) {
-                    String proofJwt = extractProofJwt(proofType, proofs);
-                    proofDetailsOut[0] = new ProofDisplayDetails(
-                            OAuthClientUtil.getRequestInfo(nonceReq),
-                            JsonSerialization.writeValueAsPrettyString(nonceResp.getNonceResponse()),
-                            proofType,
-                            proofJwt
-                    );
-                }
+                String proofJwt = extractProofJwt(proofType, proofs);
+                result.setProofContext(
+                        OAuthClientUtil.getRequestInfo(nonceReq),
+                        JsonSerialization.writeValueAsPrettyString(nonceResp.getNonceResponse()),
+                        proofType,
+                        proofJwt
+                );
             }
 
             Oid4vcCredentialResponse credentialResponse = credentialRequest.send();
             MyOid4vcCredentialResponse credResponse = new MyOid4vcCredentialResponse(credentialResponse);
-            return new WebRequestContext<>(credentialRequest, credResponse);
+            WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> credentialRequestCtx =  new WebRequestContext<>(credentialRequest, credResponse);
+            result.setCredentialRequestContext(credentialRequestCtx);
+            return result;
         } catch (Exception e) {
             throw new MyException("Failed to invoke credential request or parse credential response. Details: " + e.getMessage(), e);
         }
@@ -509,9 +526,10 @@ public class OID4VCIHandler implements ActionHandler {
         }
 
         try {
-            ProofDisplayDetails[] proofDetailsOut = new ProofDisplayDetails[1];
-            WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> credentialResponse =
-                    triggerCredentialRequest(oid4vciCtx, oid4vcAccessToken, proofDetailsOut);
+            CredentialRequestFullContext fullContext =
+                    triggerCredentialRequest(oid4vciCtx, oid4vcAccessToken);
+
+            WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> credentialResponse = fullContext.credentialRequestCtx;
             Map<String, Object> credRequest = OAuthClientUtil.getRequestInfo(credentialResponse.getRequest());
             credRequest.put("Body", credentialResponse.getRequest().getCredentialRequest());
 
@@ -523,21 +541,24 @@ public class OID4VCIHandler implements ActionHandler {
                 credentialResponseStr = "IllegalStateException: " + iae.getMessage();
             }
 
-            InfoBean info = new InfoBean(
-                    "Credential request", JsonSerialization.writeValueAsPrettyString(credRequest),
-                    "Credential response", credentialResponseStr);
+            InfoBean info = new InfoBean();
+
+            // Add "nonce" if it was used
+            if (fullContext.nonceRequest != null) {
+                info.addOutput("Nonce request", JsonSerialization.writeValueAsPrettyString(fullContext.nonceRequest));
+                info.addOutput("Nonce response", fullContext.nonceResponse);
+            }
+
+            info.addOutput("Credential request", JsonSerialization.writeValueAsPrettyString(credRequest));
 
             // Append proof-related display entries when a proof was used
-            ProofDisplayDetails proofDetails = proofDetailsOut[0];
-            if (proofDetails != null) {
-                info.addOutput("Nonce request", JsonSerialization.writeValueAsPrettyString(proofDetails.nonceRequest()));
-                info.addOutput("Nonce response", proofDetails.nonceResponse());
-                if (ProofType.JWT.equals(proofDetails.proofType()) && proofDetails.proofJwt() != null) {
-                    info.addOutput("JWT proof (parsed payload)", parseJwtPayload(proofDetails.proofJwt()));
-                } else if (ProofType.ATTESTATION.equals(proofDetails.proofType()) && proofDetails.proofJwt() != null) {
-                    info.addOutput("Attestation proof (parsed payload)", parseJwtPayload(proofDetails.proofJwt()));
-                }
+            if (ProofType.JWT.equals(fullContext.proofType) && fullContext.proofJwt != null) {
+                info.addOutput("JWT proof (parsed payload)", parseJwtPayload(fullContext.proofJwt));
+            } else if (ProofType.ATTESTATION.equals(fullContext.proofType) && fullContext.proofJwt != null) {
+                info.addOutput("Attestation proof (parsed payload)", parseJwtPayload(fullContext.proofJwt));
             }
+
+            info.addOutput(    "Credential response", credentialResponseStr);
 
             return info;
         } catch (Exception ioe) {
