@@ -499,14 +499,25 @@ public class OID4VCIHandler implements ActionHandler {
     }
 
     /**
+     * Parse a JWT string and return a pretty-printed JSON of its decoded header.
+     */
+    private static String parseJwtHeader(String jwt) {
+        try {
+            JWSInput jwsInput = new JWSInput(jwt);
+            JWSHeader jwsHeader = jwsInput.getHeader();
+            return JsonSerialization.writeValueAsPrettyString(jwsHeader);
+        } catch (Exception e) {
+            return jwt; // fall back to raw if unparseable
+        }
+    }
+
+    /**
      * Parse a JWT string and return a pretty-printed JSON of its decoded payload.
      */
     private static String parseJwtPayload(String jwt) {
         try {
-            String[] parts = jwt.split("\\.");
-            if (parts.length < 2) return jwt;
-            String payloadJson = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
-            JsonNode node = JsonSerialization.readValue(payloadJson, JsonNode.class);
+            JWSInput jwsInput = new JWSInput(jwt);
+            JsonNode node = jwsInput.readJsonContent(JsonNode.class);
             return JsonSerialization.writeValueAsPrettyString(node);
         } catch (Exception e) {
             return jwt; // fall back to raw if unparseable
@@ -553,8 +564,10 @@ public class OID4VCIHandler implements ActionHandler {
 
             // Append proof-related display entries when a proof was used
             if (ProofType.JWT.equals(fullContext.proofType) && fullContext.proofJwt != null) {
+                info.addOutput("JWT proof (parsed header)", parseJwtHeader(fullContext.proofJwt));
                 info.addOutput("JWT proof (parsed payload)", parseJwtPayload(fullContext.proofJwt));
             } else if (ProofType.ATTESTATION.equals(fullContext.proofType) && fullContext.proofJwt != null) {
+                info.addOutput("Attestation proof (parsed header)", parseJwtHeader(fullContext.proofJwt));
                 info.addOutput("Attestation proof (parsed payload)", parseJwtPayload(fullContext.proofJwt));
             }
 
