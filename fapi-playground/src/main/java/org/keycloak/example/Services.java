@@ -10,6 +10,7 @@ import org.keycloak.example.util.FreeMarkerUtil;
 import org.keycloak.example.util.MutualTLSUtils;
 import org.keycloak.example.util.MyConstants;
 import org.keycloak.example.util.OAuthClient;
+import org.keycloak.example.util.PersistenceProvider;
 import org.keycloak.example.util.SessionData;
 import org.keycloak.models.Constants;
 
@@ -26,6 +27,11 @@ import static org.keycloak.example.util.MyConstants.SERVER_ROOT;
 public class Services {
 
     private static final Services instance = new Services();
+    static {
+        // Initialization
+        instance.session = createSession();
+    }
+
     private Services() {
         CryptoIntegration.init(Services.class.getClassLoader());
     }
@@ -40,7 +46,13 @@ public class Services {
     private volatile OAuthClient oauthClient;
     private volatile CloseableHttpClient httpClient;
 
-    private final SessionData session = new SessionData(); // TODO: Make sure that this is really session data and not app-scoped stuff
+    private SessionData session;
+
+    private static SessionData createSession() {
+        SessionData s = new SessionData();
+        PersistenceProvider.load(s);
+        return s;
+    }
 
 
     public FreeMarkerUtil getFreeMarker() {

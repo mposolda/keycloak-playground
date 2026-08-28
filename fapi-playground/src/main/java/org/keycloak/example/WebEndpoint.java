@@ -149,12 +149,9 @@ public class WebEndpoint {
                         WebRequestContext<OIDCClientRepresentation, OIDCClientRepresentation> res = clientReg.registerClient(oidcClient);
                         session.setRegisteredClient(res.getResponse());
 
-                        OAuthClient oauthClient = Services.instance().getOauthClient();
-                        if (OIDCLoginProtocol.CLIENT_SECRET_BASIC.equals(session.getClientConfigContext().getClientAuthMethod())) {
-                            oauthClient.client(res.getResponse().getClientId(), res.getResponse().getClientSecret());
-                        } else {
-                            oauthClient.client(res.getResponse().getClientId());
-                        }
+                        OAuthClientUtil.setupOAuthClient(session, res.getResponse().getClientId(), res.getResponse().getClientSecret());
+
+                        PersistenceProvider.save(session);
 
                         fmAttributes.put("info", new InfoBean("Client Registration Request", JsonSerialization.writeValueAsPrettyString(res.getRequest()),
                                 "Client Registration Response", JsonSerialization.writeValueAsPrettyString(res.getResponse())));
