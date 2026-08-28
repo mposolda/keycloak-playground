@@ -189,6 +189,16 @@
                     </select>
                 </td>
             </tr>
+            <tr>
+                <td>Use attestation for JWT proofs: </td>
+                <td>
+                    <#if oid4vciCtx.useAttestationForJwtProof>
+                        <input id="oid4vci-jwt-use-attestation" name="oid4vci-jwt-use-attestation" type="checkbox" checked>
+                    <#else>
+                        <input id="oid4vci-jwt-use-attestation" name="oid4vci-jwt-use-attestation" type="checkbox">
+                    </#if>
+                </td>
+            </tr>
 <!--            <tr><td>Client ID (for pre-authorized grant): </td><td><input id="oid4ci-preauthz-client_id" name="oid4ci-preauthz-client_id" value="${oid4vciCtx.preauthzClientId!}"></td></tr>-->
 <!--            <tr><td>Username (for pre-authorized grant with REST): </td><td><input id="oid4ci-preauthz-username" name="oid4ci-preauthz-username" value="${oid4vciCtx.preauthzUsername!}"></td></tr>-->
 <!--            <tr><td>Credential offer URL: </td><td><input id="oid4ci-preauthz-offer" name="oid4ci-preauthz-offer" value="${oid4vciCtx.preauthzOffer!}"></td></tr>-->

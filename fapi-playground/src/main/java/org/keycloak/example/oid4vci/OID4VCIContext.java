@@ -21,6 +21,7 @@ public class OID4VCIContext {
     private String preauthzUsername;
     private String configuredCredentialOffer;
     private String proofType = "none";
+    private boolean useAttestationForJwtProof;
 
     // Attestation key (generated on demand, persisted across credential requests)
     private KeyWrapper attestationKey;
@@ -70,6 +71,14 @@ public class OID4VCIContext {
 
     public void setProofType(String proofType) {
         this.proofType = proofType;
+    }
+
+    public boolean isUseAttestationForJwtProof() {
+        return useAttestationForJwtProof;
+    }
+
+    public void setUseAttestationForJwtProof(boolean useAttestationForJwtProof) {
+        this.useAttestationForJwtProof = useAttestationForJwtProof;
     }
 
     public KeyWrapper getAttestationKey() {
@@ -157,6 +166,7 @@ public class OID4VCIContext {
         preauthzUsername = null;
         configuredCredentialOffer = null;
         proofType = "none";
+        useAttestationForJwtProof = false;
         attestationKey = null;
     }
 

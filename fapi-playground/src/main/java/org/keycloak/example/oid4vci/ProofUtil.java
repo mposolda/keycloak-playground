@@ -1,8 +1,11 @@
 package org.keycloak.example.oid4vci;
 
 import java.security.KeyPairGenerator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import org.keycloak.common.util.Base64Url;
 import org.keycloak.common.util.BouncyIntegration;
 import org.keycloak.crypto.ECDSASignatureSignerContext;
 import org.keycloak.crypto.KeyUse;
@@ -16,6 +19,7 @@ import org.keycloak.protocol.oid4vc.model.KeyAttestationJwtBody;
 import org.keycloak.protocol.oid4vc.model.Proofs;
 import org.keycloak.protocol.oid4vc.model.ProofType;
 import org.keycloak.representations.AccessToken;
+import org.keycloak.util.JsonSerialization;
 
 /**
  * Utility for generating OID4VCI holder-binding proofs (jwt and attestation).
@@ -34,7 +38,7 @@ public final class ProofUtil {
      * @return a populated {@link Proofs} ready to attach to a credential request
      */
     public static Proofs buildProofs(String proofType, String audience, String cNonce) {
-        return buildProofs(proofType, audience, cNonce, null);
+        return buildProofs(proofType, audience, cNonce, null, false);
     }
 
     /**
@@ -43,13 +47,32 @@ public final class ProofUtil {
      * @param proofType      the requested proof type ("jwt" or "attestation")
      * @param audience       the credential-issuer URL used as JWT audience
      * @param cNonce         the c_nonce value obtained from the nonce endpoint
-     * @param attestationKey pre-generated attestation key to use (required when proofType is "attestation")
+     * @param attestationKey pre-generated attestation key to use (required when proofType is "attestation",
+     *                       or when proofType is "jwt" and useAttestationForJwtProof is true)
      * @return a populated {@link Proofs} ready to attach to a credential request
      */
     public static Proofs buildProofs(String proofType, String audience, String cNonce, KeyWrapper attestationKey) {
+        return buildProofs(proofType, audience, cNonce, attestationKey, false);
+    }
+
+    /**
+     * Generate a {@link Proofs} object of the requested type.
+     *
+     * @param proofType                 the requested proof type ("jwt" or "attestation")
+     * @param audience                  the credential-issuer URL used as JWT audience
+     * @param cNonce                    the c_nonce value obtained from the nonce endpoint
+     * @param attestationKey            pre-generated attestation key (required when proofType is "attestation",
+     *                                  or when proofType is "jwt" and useAttestationForJwtProof is true)
+     * @param useAttestationForJwtProof when true and proofType is "jwt", embeds a {@code key_attestation}
+     *                                  header into the JWT proof signed by the attestation key
+     * @return a populated {@link Proofs} ready to attach to a credential request
+     */
+    public static Proofs buildProofs(String proofType, String audience, String cNonce, KeyWrapper attestationKey, boolean useAttestationForJwtProof) {
         switch (proofType) {
             case ProofType.JWT -> {
-                String jwtProof = generateJwtProof(audience, cNonce);
+                String jwtProof = useAttestationForJwtProof
+                        ? generateJwtProofWithKeyAttestation(audience, cNonce, attestationKey)
+                        : generateJwtProof(audience, cNonce);
                 return new Proofs().setJwt(List.of(jwtProof));
             }
             case ProofType.ATTESTATION -> {
@@ -84,6 +107,61 @@ public final class ProofUtil {
                 .jwk(jwk)
                 .jsonContent(token)
                 .sign(new ECDSASignatureSignerContext(keyWrapper));
+    }
+
+    /**
+     * Generate a JWT proof that embeds a {@code key_attestation} header signed by the attestation key.
+     * <p>
+     * The structure follows the OID4VCI specification and Keycloak's
+     * {@code JwtProofValidator}: a fresh EC proof key is generated, the attestation key signs
+     * an inner attestation JWT that attests this proof key, and the attestation JWT string is
+     * placed in the {@code key_attestation} header of the outer JWT proof.
+     * </p>
+     */
+    private static String generateJwtProofWithKeyAttestation(String audience, String nonce, KeyWrapper attestationKey) {
+        // 1. Generate a fresh ephemeral proof key
+        KeyWrapper proofKey = createEcKeyPair();
+
+        JWK proofJwk = JWKBuilder.create().ec(proofKey.getPublicKey());
+        proofJwk.setKeyId(proofKey.getKid());
+        proofJwk.setAlgorithm(proofKey.getAlgorithm());
+
+        // 2. Build the inner key-attestation JWT signed by the attestation key
+        long now = System.currentTimeMillis() / 1000;
+        KeyAttestationJwtBody attestationBody = new KeyAttestationJwtBody();
+        attestationBody.setIat(now);
+        attestationBody.setExp(now + 3600);
+        attestationBody.setNonce(nonce);
+        attestationBody.setAttestedKeys(List.of(proofJwk));
+
+        String innerAttestationJwt = new JWSBuilder()
+                .type(AttestationValidatorUtil.ATTESTATION_JWT_TYP)
+                .kid(attestationKey.getKid())
+                .jsonContent(attestationBody)
+                .sign(new ECDSASignatureSignerContext(attestationKey));
+
+        // 3. Build the outer JWT proof with key_attestation header
+        AccessToken token = new AccessToken();
+        token.addAudience(audience);
+        token.setNonce(nonce);
+        token.issuedNow();
+
+        Map<String, Object> header = new HashMap<>();
+        header.put("alg", proofKey.getAlgorithm());
+        header.put("typ", JwtProofValidator.PROOF_JWT_TYP);
+        header.put("jwk", proofJwk);
+        header.put("key_attestation", innerAttestationJwt);
+
+        return new JWSBuilder() {
+            @Override
+            protected String encodeHeader(String sigAlgName) {
+                try {
+                    return Base64Url.encode(JsonSerialization.writeValueAsBytes(header));
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to encode JWT proof header with key_attestation", e);
+                }
+            }
+        }.jsonContent(token).sign(new ECDSASignatureSignerContext(proofKey));
     }
 
     // -------------------------------------------------------------------------

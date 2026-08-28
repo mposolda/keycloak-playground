@@ -327,8 +327,9 @@ public class OID4VCIHandler implements ActionHandler {
         String preauthzUsername = params.get("oid4ci-preauthz-username");
         String preauthzOffer = params.get("oid4ci-preauthz-offer");
         String proofType = params.getOrDefault("oid4vci-proof-type", "none");
-        log.infof("Selected oid4vciCredential: %s, preAuthorized: %s, claimsToPresent: %s, pre-authz clientId: %s, pre-authz username: %s, pre-authz offer: %s, proofType: %s",
-                oid4vciCredential, preAuthorized, claimsToPresent, preauthzClientId, preauthzUsername, preauthzOffer, proofType);
+        boolean useAttestationForJwtProof = params.get("oid4vci-jwt-use-attestation") != null;
+        log.infof("Selected oid4vciCredential: %s, preAuthorized: %s, claimsToPresent: %s, pre-authz clientId: %s, pre-authz username: %s, pre-authz offer: %s, proofType: %s, useAttestationForJwtProof: %s",
+                oid4vciCredential, preAuthorized, claimsToPresent, preauthzClientId, preauthzUsername, preauthzOffer, proofType, useAttestationForJwtProof);
         oid4vciCtx.setSelectedCredentialId(oid4vciCredential);
         oid4vciCtx.setPreAuthorized(preAuthorized);
         oid4vciCtx.setClaimsToPresent(claimsToPresent);
@@ -336,6 +337,7 @@ public class OID4VCIHandler implements ActionHandler {
         oid4vciCtx.setPreauthzUsername(preauthzUsername);
         oid4vciCtx.setConfiguredCredentialOffer(preauthzOffer);
         oid4vciCtx.setProofType(proofType);
+        oid4vciCtx.setUseAttestationForJwtProof(useAttestationForJwtProof);
     }
 
     private List<OID4VCIContext.OID4VCCredential> getAvailableCredentials(CredentialIssuer credIssuer) {
@@ -467,9 +469,9 @@ public class OID4VCIHandler implements ActionHandler {
                 String cNonce = nonceResp.getNonce();
 
                 String credentialIssuer = oauth.oid4vc().issuerMetadataRequest().send().getMetadata().getCredentialIssuer();
-                Proofs proofs = ProofUtil.buildProofs(proofType, credentialIssuer, cNonce, oid4VCIContext.getAttestationKey());
+                Proofs proofs = ProofUtil.buildProofs(proofType, credentialIssuer, cNonce, oid4VCIContext.getAttestationKey(), oid4VCIContext.isUseAttestationForJwtProof());
                 credentialRequest.proofs(proofs);
-                log.infof("Attaching '%s' proof to credential request (c_nonce obtained from nonce endpoint)", proofType);
+                log.infof("Attaching '%s' proof to credential request (c_nonce obtained from nonce endpoint, useAttestationForJwtProof: %s)", proofType, oid4VCIContext.isUseAttestationForJwtProof());
 
                 String proofJwt = extractProofJwt(proofType, proofs);
                 result.setProofContext(
@@ -565,9 +567,7 @@ public class OID4VCIHandler implements ActionHandler {
             return new InfoBean("No OID4VCI access token", "No access token capable of doing OID4VCI credential request. Please start OID4VCI authorization-code or pre-authorization code grant");
         }
 
-        // Guard: attestation proof requires that a key was previously generated
-        String proofType = oid4vciCtx.getProofType();
-        if (ProofType.ATTESTATION.equals(proofType) && oid4vciCtx.getAttestationKey() == null) {
+        if (!checkAttestationKeyPresentIfNeeded(oid4vciCtx)) {
             return new InfoBean("Attestation key missing",
                     "Please generate and configure attestation key by clicking 'Generate attestation key' first, " +
                     "then configure the corresponding Trusted Key identity provider in Keycloak.");
@@ -614,6 +614,21 @@ public class OID4VCIHandler implements ActionHandler {
         } catch (Exception ioe) {
             throw new MyException("Unexpected exception when preparing/sending credential request: " + ioe.getMessage(), ioe);
         }
+    }
+
+    private boolean checkAttestationKeyPresentIfNeeded(OID4VCIContext oid4vciCtx) {
+        // Guard: attestation proof requires that a key was previously generated
+        String proofType = oid4vciCtx.getProofType();
+        if (ProofType.ATTESTATION.equals(proofType) && oid4vciCtx.getAttestationKey() == null) {
+            return false;
+        }
+        // Guard: JWT proof with attestation also requires a pre-generated attestation key
+        if (ProofType.JWT.equals(proofType) && oid4vciCtx.isUseAttestationForJwtProof() && oid4vciCtx.getAttestationKey() == null) {
+            return false;
+        }
+
+        // OK
+        return true;
     }
 
     private InfoBean getLastCredentialResponse(ActionHandlerContext actionContext) {
