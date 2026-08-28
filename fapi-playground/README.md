@@ -231,6 +231,31 @@ and seeing that there is new issued-credential
 10.b) In the demo, you can click "Refresh token" (in the OIDC section) and check that refresh token is successful - even if user session was logged out. Also it is still possible to do `Credential request` to obtain refreshed verifiable credential
 10.c) Find the appropriate issued verifiable credential and revoke tab (See step 9 for how to find it). Once this is done, it is not possible to refresh anymore. Also not possible to obtain verifiable credential
 
+#### Using OID4VCI proofs in the credential request
+
+The `OID4VCI proof type` combo-box in the OID4VCI section controls whether a holder-binding proof is attached to the credential request (see [OID4VCI specification section 8.2](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-proof-types)).
+
+Available values:
+- **none** (default) — no `proofs` parameter is sent; same behaviour as before.
+- **jwt** — a freshly generated JWT proof is attached. The application generates an ephemeral EC key pair, obtains a `c_nonce` from the Keycloak nonce endpoint, and signs a `openid4vci-proof+jwt` JWT with the credential-issuer URL as audience.
+- **attestation** — a key-attestation proof is attached. The application generates an ephemeral EC key pair for the attestation, embeds the attested public JWK inside the attestation JWT body, and signs a `key-attestation+jwt` JWT containing the `c_nonce`.
+
+##### Configuring Keycloak to require proofs
+
+For Keycloak to validate and accept a proof, the `education-certificate` client scope (or whichever credential scope you are using) must be configured to require key binding. Without this configuration Keycloak accepts the credential request regardless of whether a proof is present.
+
+Steps in the Keycloak admin console:
+
+1. Go to `Client scopes` → `education-certificate` → tab `Settings`.
+2. Select **Cryptographic binding required** switch to ON. New options will be shown.
+3. Under **Cryptographic Binding Method**, select `jwk` (or another supported method).
+4. Under **Supported proof types**, add `jwt` and/or `attestation` depending on which proof types you want the scope to accept.
+5. Save the client scope.
+
+Once saved, any credential request for this scope that does **not** include a valid proof will be rejected by Keycloak with an `invalid_proof` error. Select `jwt` or `attestation` from the `OID4VCI proof type` combo-box in the demo before clicking `Credential request` to satisfy this requirement.
+
+**Tip:** You can confirm that the proof was included by clicking `Credential request` and inspecting the `Body` field in the `Credential request` output panel — it should contain a `proofs` object with the corresponding `jwt` or `attestation` array.
+
 #### Flow with pre-authorized grant and application-initiated action
 
 NOTE: This is temporarily disabled. It does not work as it supports some pieces in Keycloak, which are experimental and were changed in the Keycloak in the meantime.
@@ -307,7 +332,6 @@ Feel free to create GH issue at least if you find the trouble, but PR with contr
 
 5) OID4VCI demo improvement - Other things to add might be:
 - Cleanup existing stuff and make it more user friendly (there is likely too much buttons and is hard to use)
-- Key-binding and proofs support for SD-JWT credential 
 - Integrate with real wallets (instead of need to copy/paste the `Credential offer` manually to this FAPI playground)
 
 (See above for potential contributions tips and also search for `TODO:` in the code :-) )

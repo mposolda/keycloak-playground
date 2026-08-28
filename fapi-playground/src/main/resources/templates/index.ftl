@@ -167,6 +167,28 @@
             </tr>
 -->
             <tr><td>Claims to present (divided by comma): </td><td><input id="oid4ci-claims-to-present" name="oid4ci-claims-to-present" value="${oid4vciCtx.claimsToPresent!}"></td></tr>
+            <tr>
+                <td>OID4VCI proof type: </td>
+                <td>
+                    <select name="oid4vci-proof-type" id="oid4vci-proof-type">
+                        <#if oid4vciCtx.proofType == "none">
+                            <option value="none" selected>none</option>
+                        <#else>
+                            <option value="none">none</option>
+                        </#if>
+                        <#if oid4vciCtx.proofType == "jwt">
+                            <option value="jwt" selected>jwt</option>
+                        <#else>
+                            <option value="jwt">jwt</option>
+                        </#if>
+                        <#if oid4vciCtx.proofType == "attestation">
+                            <option value="attestation" selected>attestation</option>
+                        <#else>
+                            <option value="attestation">attestation</option>
+                        </#if>
+                    </select>
+                </td>
+            </tr>
 <!--            <tr><td>Client ID (for pre-authorized grant): </td><td><input id="oid4ci-preauthz-client_id" name="oid4ci-preauthz-client_id" value="${oid4vciCtx.preauthzClientId!}"></td></tr>-->
 <!--            <tr><td>Username (for pre-authorized grant with REST): </td><td><input id="oid4ci-preauthz-username" name="oid4ci-preauthz-username" value="${oid4vciCtx.preauthzUsername!}"></td></tr>-->
 <!--            <tr><td>Credential offer URL: </td><td><input id="oid4ci-preauthz-offer" name="oid4ci-preauthz-offer" value="${oid4vciCtx.preauthzOffer!}"></td></tr>-->

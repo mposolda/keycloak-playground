@@ -19,6 +19,7 @@ public class OID4VCIContext {
     private String preauthzClientId;
     private String preauthzUsername;
     private String configuredCredentialOffer;
+    private String proofType = "none";
 
     // Obtained from requests
     private CredentialIssuer credentialIssuerMetadata;
@@ -57,6 +58,14 @@ public class OID4VCIContext {
 
     public void setPreauthzClientId(String preauthzClientId) {
         this.preauthzClientId = preauthzClientId;
+    }
+
+    public String getProofType() {
+        return proofType;
+    }
+
+    public void setProofType(String proofType) {
+        this.proofType = proofType;
     }
 
     public String getPreauthzUsername() {
@@ -135,6 +144,7 @@ public class OID4VCIContext {
         preauthzClientId = null;
         preauthzUsername = null;
         configuredCredentialOffer = null;
+        proofType = "none";
     }
 
     public static class OID4VCCredential {

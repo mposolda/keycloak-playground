@@ -321,14 +321,16 @@ public class OID4VCIHandler implements ActionHandler {
         String preauthzClientId = params.get("oid4ci-preauthz-client_id");
         String preauthzUsername = params.get("oid4ci-preauthz-username");
         String preauthzOffer = params.get("oid4ci-preauthz-offer");
-        log.infof("Selected oid4vciCredential: %s, preAuthorized: %s, claimsToPresent: %s, pre-authz clientId: %s, pre-authz username: %s, pre-authz offer: %s",
-                oid4vciCredential, preAuthorized, claimsToPresent, preauthzClientId, preauthzUsername, preauthzOffer);
+        String proofType = params.getOrDefault("oid4vci-proof-type", "none");
+        log.infof("Selected oid4vciCredential: %s, preAuthorized: %s, claimsToPresent: %s, pre-authz clientId: %s, pre-authz username: %s, pre-authz offer: %s, proofType: %s",
+                oid4vciCredential, preAuthorized, claimsToPresent, preauthzClientId, preauthzUsername, preauthzOffer, proofType);
         oid4vciCtx.setSelectedCredentialId(oid4vciCredential);
         oid4vciCtx.setPreAuthorized(preAuthorized);
         oid4vciCtx.setClaimsToPresent(claimsToPresent);
         oid4vciCtx.setPreauthzClientId(preauthzClientId);
         oid4vciCtx.setPreauthzUsername(preauthzUsername);
         oid4vciCtx.setConfiguredCredentialOffer(preauthzOffer);
+        oid4vciCtx.setProofType(proofType);
     }
 
     private List<OID4VCIContext.OID4VCCredential> getAvailableCredentials(CredentialIssuer credIssuer) {
@@ -424,6 +426,15 @@ public class OID4VCIHandler implements ActionHandler {
             Oid4vcCredentialRequest credentialRequest = oauth.oid4vc().credentialRequest()
                     .credentialIdentifier(oid4VCIContext.getAuthzDetails().getCredentialIdentifiers().get(0))
                     .bearerToken(accessToken);
+
+            String proofType = oid4VCIContext.getProofType();
+            if (proofType != null && !"none".equals(proofType)) {
+                String cNonce = oauth.oid4vc().nonceRequest().send().getNonce();
+                String credentialIssuer = oauth.oid4vc().issuerMetadataRequest().send().getMetadata().getCredentialIssuer();
+                credentialRequest.proofs(ProofUtil.buildProofs(proofType, credentialIssuer, cNonce));
+                log.infof("Attaching '%s' proof to credential request (c_nonce obtained from nonce endpoint)", proofType);
+            }
+
             Oid4vcCredentialResponse credentialResponse = credentialRequest.send();
             MyOid4vcCredentialResponse credResponse = new MyOid4vcCredentialResponse(credentialResponse);
             return new WebRequestContext<>(credentialRequest, credResponse);
