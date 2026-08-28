@@ -34,13 +34,29 @@ public final class ProofUtil {
      * @return a populated {@link Proofs} ready to attach to a credential request
      */
     public static Proofs buildProofs(String proofType, String audience, String cNonce) {
+        return buildProofs(proofType, audience, cNonce, null);
+    }
+
+    /**
+     * Generate a {@link Proofs} object of the requested type.
+     *
+     * @param proofType      the requested proof type ("jwt" or "attestation")
+     * @param audience       the credential-issuer URL used as JWT audience
+     * @param cNonce         the c_nonce value obtained from the nonce endpoint
+     * @param attestationKey pre-generated attestation key to use (required when proofType is "attestation")
+     * @return a populated {@link Proofs} ready to attach to a credential request
+     */
+    public static Proofs buildProofs(String proofType, String audience, String cNonce, KeyWrapper attestationKey) {
         switch (proofType) {
             case ProofType.JWT -> {
                 String jwtProof = generateJwtProof(audience, cNonce);
                 return new Proofs().setJwt(List.of(jwtProof));
             }
             case ProofType.ATTESTATION -> {
-                String attestationJwt = generateAttestationProof(cNonce);
+                if (attestationKey == null) {
+                    throw new IllegalStateException("Please generate and configure attestation key before sending an attestation proof");
+                }
+                String attestationJwt = generateAttestationProof(cNonce, attestationKey);
                 return new Proofs().setAttestation(List.of(attestationJwt));
             }
             default -> throw new IllegalArgumentException("Unsupported proof type: " + proofType);
@@ -74,9 +90,7 @@ public final class ProofUtil {
     // Attestation proof
     // -------------------------------------------------------------------------
 
-    private static String generateAttestationProof(String nonce) {
-        KeyWrapper attestationKey = createEcKeyPair();
-
+    private static String generateAttestationProof(String nonce, KeyWrapper attestationKey) {
         // The attested key (proof key) is embedded in the attestation body
         JWK proofJwk = JWKBuilder.create().ec(createEcKeyPair().getPublicKey());
 
@@ -98,7 +112,10 @@ public final class ProofUtil {
     // Key generation
     // -------------------------------------------------------------------------
 
-    private static KeyWrapper createEcKeyPair() {
+    /**
+     * Generate a fresh EC key pair (ES256 / P-256) suitable for use as an attestation key.
+     */
+    public static KeyWrapper createEcKeyPair() {
         try {
             KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", BouncyIntegration.PROVIDER);
             kpg.initialize(256);

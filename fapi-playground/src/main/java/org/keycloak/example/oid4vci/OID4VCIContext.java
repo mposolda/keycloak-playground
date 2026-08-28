@@ -1,6 +1,7 @@
 package org.keycloak.example.oid4vci;
 
 import org.jboss.logging.Logger;
+import org.keycloak.crypto.KeyWrapper;
 import org.keycloak.protocol.oid4vc.model.*;
 
 import java.util.Collections;
@@ -20,6 +21,9 @@ public class OID4VCIContext {
     private String preauthzUsername;
     private String configuredCredentialOffer;
     private String proofType = "none";
+
+    // Attestation key (generated on demand, persisted across credential requests)
+    private KeyWrapper attestationKey;
 
     // Obtained from requests
     private CredentialIssuer credentialIssuerMetadata;
@@ -66,6 +70,14 @@ public class OID4VCIContext {
 
     public void setProofType(String proofType) {
         this.proofType = proofType;
+    }
+
+    public KeyWrapper getAttestationKey() {
+        return attestationKey;
+    }
+
+    public void setAttestationKey(KeyWrapper attestationKey) {
+        this.attestationKey = attestationKey;
     }
 
     public String getPreauthzUsername() {
@@ -145,6 +157,7 @@ public class OID4VCIContext {
         preauthzUsername = null;
         configuredCredentialOffer = null;
         proofType = "none";
+        attestationKey = null;
     }
 
     public static class OID4VCCredential {

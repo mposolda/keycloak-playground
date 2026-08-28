@@ -197,6 +197,7 @@
     <br />
     <div>
         <button onclick="submitWithAction('oid4vci-wellknown-endpoint')">Get OID4VCI metadata from well-known endpoint</button>
+        <button onclick="submitWithAction('oid4vci-generate-attestation-key')">Generate attestation key</button>
         <#if oid4vciCtx.credentialIssuerMetadata??>
             <button onclick="submitWithAction('oid4vci-authz-code-flow')">Cred. issuance - Authorization code grant</button>
         </#if>

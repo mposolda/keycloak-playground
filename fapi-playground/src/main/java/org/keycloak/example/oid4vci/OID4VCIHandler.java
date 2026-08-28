@@ -5,11 +5,14 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.jboss.logging.Logger;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.VCFormat;
+import org.keycloak.crypto.KeyWrapper;
 import org.keycloak.example.Services;
 import org.keycloak.example.bean.InfoBean;
 import org.keycloak.example.handlers.ActionHandler;
 import org.keycloak.example.handlers.ActionHandlerContext;
 import org.keycloak.example.util.*;
+import org.keycloak.jose.jwk.JWK;
+import org.keycloak.jose.jwk.JWKBuilder;
 import org.keycloak.jose.jws.JWSHeader;
 import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.jose.jws.JWSInputException;
@@ -60,7 +63,8 @@ public class OID4VCIHandler implements ActionHandler {
                 "oid4vci-pre-authz-code-with-offer", this::handlePreAuthzFlowWithOffer,
                 "oid4vci-credential-request", this::credentialRequest,
                 "oid4vci-last-credential-response", this::getLastCredentialResponse,
-                "oid4vci-create-presentation", this::createPresentation
+                "oid4vci-create-presentation", this::createPresentation,
+                "oid4vci-generate-attestation-key", this::generateAttestationKey
         );
     }
 
@@ -463,7 +467,7 @@ public class OID4VCIHandler implements ActionHandler {
                 String cNonce = nonceResp.getNonce();
 
                 String credentialIssuer = oauth.oid4vc().issuerMetadataRequest().send().getMetadata().getCredentialIssuer();
-                Proofs proofs = ProofUtil.buildProofs(proofType, credentialIssuer, cNonce);
+                Proofs proofs = ProofUtil.buildProofs(proofType, credentialIssuer, cNonce, oid4VCIContext.getAttestationKey());
                 credentialRequest.proofs(proofs);
                 log.infof("Attaching '%s' proof to credential request (c_nonce obtained from nonce endpoint)", proofType);
 
@@ -524,6 +528,30 @@ public class OID4VCIHandler implements ActionHandler {
         }
     }
 
+    private InfoBean generateAttestationKey(ActionHandlerContext actionContext) {
+        OID4VCIContext oid4vciCtx = actionContext.getSession().getOrCreateOID4VCIContext();
+        KeyWrapper newKey = ProofUtil.createEcKeyPair();
+        oid4vciCtx.setAttestationKey(newKey);
+
+        try {
+            JWK publicJwk = JWKBuilder.create().ec(newKey.getPublicKey());
+            publicJwk.setKeyId(newKey.getKid());
+            publicJwk.setAlgorithm(newKey.getAlgorithm());
+
+            // Wrap single JWK in a JWKS structure {"keys": [...]} for display
+            Map<String, Object> jwksMap = Map.of("keys", List.of(publicJwk));
+            String jwksStr = JsonSerialization.writeValueAsPrettyString(jwksMap);
+            return new InfoBean(
+                    "Attestation key generated",
+                    "A new EC (ES256) attestation key has been generated. Configure a 'Trusted Key' identity provider " +
+                    "in Keycloak with the JWKS shown below, and make sure your client references that IDP.",
+                    "Attestation key (public JWKS)",
+                    jwksStr);
+        } catch (IOException e) {
+            throw new MyException("Failed to serialize attestation key to JWKS", e);
+        }
+    }
+
     private InfoBean credentialRequest(ActionHandlerContext actionContext) {
         OID4VCIContext oid4vciCtx = actionContext.getSession().getOrCreateOID4VCIContext();
 
@@ -534,6 +562,14 @@ public class OID4VCIHandler implements ActionHandler {
 
         if (oid4vcAccessToken == null) {
             return new InfoBean("No OID4VCI access token", "No access token capable of doing OID4VCI credential request. Please start OID4VCI authorization-code or pre-authorization code grant");
+        }
+
+        // Guard: attestation proof requires that a key was previously generated
+        String proofType = oid4vciCtx.getProofType();
+        if (ProofType.ATTESTATION.equals(proofType) && oid4vciCtx.getAttestationKey() == null) {
+            return new InfoBean("Attestation key missing",
+                    "Please generate and configure attestation key by clicking 'Generate attestation key' first, " +
+                    "then configure the corresponding Trusted Key identity provider in Keycloak.");
         }
 
         try {
