@@ -39,3 +39,16 @@ For the inspiration: The class `OID4VCClient` from the Keycloak codebase has uti
 Are you please also able to add additional instructions to the README.md file (probably to section "Wallet initiated flow") about
 how to use that new switch? I think that generating proof may also need update of the "education-certificate" client scope
 in the Keycloak admin console in order to make sure that "education-certificate" credential require proofs.
+
+----------------
+
+### Follow-up issues
+
+I need some additional minor follow-ups to the current fapi-playground demo related to "proofs" generation, which was implemented in previous task.
+
+1) When I select some OID4VCI proof type like 'jwt' and then I click button 'Credential request', the selected proof type is not applied, but it is rather reset to the previous value. Can you fix this bug please?
+
+2) When some proof type (either 'jwt' or 'attestation' is selected), it would be nice if `InfoBean` receives additional data, which would be displayed on the screen. Especially, it would be great to display:
+- `Nonce request` and `Nonce response` request details in case that those were sent when adding the proof
+- The `JWT proof` with the parsed JSON of jwt - in case that `jwt` proof was selected
+- The `Attestation proof` with the parsed JSON of attestation - in case that `attestation` proof was selected 

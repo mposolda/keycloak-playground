@@ -31,6 +31,7 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -420,7 +421,18 @@ public class OID4VCIHandler implements ActionHandler {
         }
     }
 
-    private static WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> triggerCredentialRequest(OID4VCIContext oid4VCIContext, String accessToken) {
+    /**
+     * Carries optional proof-related display details back from {@link #triggerCredentialRequest}.
+     */
+    private record ProofDisplayDetails(
+            Map<String, Object> nonceRequest,
+            String nonceResponse,
+            String proofType,
+            String proofJwt
+    ) {}
+
+    private static WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> triggerCredentialRequest(
+            OID4VCIContext oid4VCIContext, String accessToken, ProofDisplayDetails[] proofDetailsOut) {
         OAuthClient oauth = Services.instance().getOauthClient();
         try {
             Oid4vcCredentialRequest credentialRequest = oauth.oid4vc().credentialRequest()
@@ -429,10 +441,24 @@ public class OID4VCIHandler implements ActionHandler {
 
             String proofType = oid4VCIContext.getProofType();
             if (proofType != null && !"none".equals(proofType)) {
-                String cNonce = oauth.oid4vc().nonceRequest().send().getNonce();
+                Oid4vcNonceRequest nonceReq = oauth.oid4vc().nonceRequest();
+                Oid4vcNonceResponse nonceResp = nonceReq.send();
+                String cNonce = nonceResp.getNonce();
+
                 String credentialIssuer = oauth.oid4vc().issuerMetadataRequest().send().getMetadata().getCredentialIssuer();
-                credentialRequest.proofs(ProofUtil.buildProofs(proofType, credentialIssuer, cNonce));
+                Proofs proofs = ProofUtil.buildProofs(proofType, credentialIssuer, cNonce);
+                credentialRequest.proofs(proofs);
                 log.infof("Attaching '%s' proof to credential request (c_nonce obtained from nonce endpoint)", proofType);
+
+                if (proofDetailsOut != null) {
+                    String proofJwt = extractProofJwt(proofType, proofs);
+                    proofDetailsOut[0] = new ProofDisplayDetails(
+                            OAuthClientUtil.getRequestInfo(nonceReq),
+                            JsonSerialization.writeValueAsPrettyString(nonceResp.getNonceResponse()),
+                            proofType,
+                            proofJwt
+                    );
+                }
             }
 
             Oid4vcCredentialResponse credentialResponse = credentialRequest.send();
@@ -443,8 +469,39 @@ public class OID4VCIHandler implements ActionHandler {
         }
     }
 
+    /**
+     * Extract the raw JWT string from the {@link Proofs} based on proof type.
+     */
+    private static String extractProofJwt(String proofType, Proofs proofs) {
+        if (ProofType.JWT.equals(proofType) && proofs.getJwt() != null && !proofs.getJwt().isEmpty()) {
+            return proofs.getJwt().get(0);
+        } else if (ProofType.ATTESTATION.equals(proofType) && proofs.getAttestation() != null && !proofs.getAttestation().isEmpty()) {
+            return proofs.getAttestation().get(0);
+        }
+        return null;
+    }
+
+    /**
+     * Parse a JWT string and return a pretty-printed JSON of its decoded payload.
+     */
+    private static String parseJwtPayload(String jwt) {
+        try {
+            String[] parts = jwt.split("\\.");
+            if (parts.length < 2) return jwt;
+            String payloadJson = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
+            JsonNode node = JsonSerialization.readValue(payloadJson, JsonNode.class);
+            return JsonSerialization.writeValueAsPrettyString(node);
+        } catch (Exception e) {
+            return jwt; // fall back to raw if unparseable
+        }
+    }
+
     private InfoBean credentialRequest(ActionHandlerContext actionContext) {
         OID4VCIContext oid4vciCtx = actionContext.getSession().getOrCreateOID4VCIContext();
+
+        // Fix: apply form params (including proof type) before processing the request
+        collectOID4VCIConfigParams(actionContext.getParams(), oid4vciCtx);
+
         String oid4vcAccessToken = actionContext.getSession().getTokenRequestCtx().getResponse().getAccessToken();
 
         if (oid4vcAccessToken == null) {
@@ -452,7 +509,9 @@ public class OID4VCIHandler implements ActionHandler {
         }
 
         try {
-            WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> credentialResponse = triggerCredentialRequest(oid4vciCtx, oid4vcAccessToken);
+            ProofDisplayDetails[] proofDetailsOut = new ProofDisplayDetails[1];
+            WebRequestContext<Oid4vcCredentialRequest, MyOid4vcCredentialResponse> credentialResponse =
+                    triggerCredentialRequest(oid4vciCtx, oid4vcAccessToken, proofDetailsOut);
             Map<String, Object> credRequest = OAuthClientUtil.getRequestInfo(credentialResponse.getRequest());
             credRequest.put("Body", credentialResponse.getRequest().getCredentialRequest());
 
@@ -464,9 +523,23 @@ public class OID4VCIHandler implements ActionHandler {
                 credentialResponseStr = "IllegalStateException: " + iae.getMessage();
             }
 
-            return new InfoBean(
+            InfoBean info = new InfoBean(
                     "Credential request", JsonSerialization.writeValueAsPrettyString(credRequest),
                     "Credential response", credentialResponseStr);
+
+            // Append proof-related display entries when a proof was used
+            ProofDisplayDetails proofDetails = proofDetailsOut[0];
+            if (proofDetails != null) {
+                info.addOutput("Nonce request", JsonSerialization.writeValueAsPrettyString(proofDetails.nonceRequest()));
+                info.addOutput("Nonce response", proofDetails.nonceResponse());
+                if (ProofType.JWT.equals(proofDetails.proofType()) && proofDetails.proofJwt() != null) {
+                    info.addOutput("JWT proof (parsed payload)", parseJwtPayload(proofDetails.proofJwt()));
+                } else if (ProofType.ATTESTATION.equals(proofDetails.proofType()) && proofDetails.proofJwt() != null) {
+                    info.addOutput("Attestation proof (parsed payload)", parseJwtPayload(proofDetails.proofJwt()));
+                }
+            }
+
+            return info;
         } catch (Exception ioe) {
             throw new MyException("Unexpected exception when preparing/sending credential request: " + ioe.getMessage(), ioe);
         }
