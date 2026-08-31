@@ -61,3 +61,5 @@ cp keystore.p12 $KEYCLOAK_HOME/data/test/keystore-e256.p12
 * Key alias: server-alias
 * Key password: secret
 * Key use: sig
+
+9) May be also good to go to the particular OID4VCI client scope and select the **Credential signing algorithm** to `ES256`
