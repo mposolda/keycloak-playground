@@ -10,9 +10,13 @@ import org.keycloak.example.oid4vci.OID4VCIContext;
 import org.keycloak.representations.oidc.OIDCClientRepresentation;
 
 import java.io.File;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 
 /**
  * Handles persistence of selected {@link SessionData} fields across application restarts.
@@ -166,8 +170,8 @@ public class PersistenceProvider {
             root.put("kid",       key.getKid());
             root.put("algorithm", key.getAlgorithm());
             root.put("keyType",   key.getType());
-            root.put("privateKey", PemUtils.encodeKey(key.getPrivateKey()));
-            root.put("publicKey",  PemUtils.encodeKey(key.getPublicKey()));
+            root.put("privateKey", Base64.getEncoder().encodeToString(key.getPrivateKey().getEncoded()));
+            root.put("publicKey",  Base64.getEncoder().encodeToString(key.getPublicKey().getEncoded()));
 
             MAPPER.writerWithDefaultPrettyPrinter().writeValue(new File(ATTESTATION_DATA_FILE), root);
             log.infof("Persisted attestation key to %s", ATTESTATION_DATA_FILE);
@@ -193,8 +197,14 @@ public class PersistenceProvider {
             String kid       = root.get("kid").asText();
             String algorithm = root.get("algorithm").asText();
             String keyType   = root.get("keyType").asText();
-            PrivateKey privateKey = PemUtils.decodePrivateKey(root.get("privateKey").asText());
-            PublicKey  publicKey  = PemUtils.decodePublicKey(root.get("publicKey").asText(), keyType);
+
+            // Note: This is specific to "EC" keys
+            PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(Base64.getMimeDecoder().decode(root.get("privateKey").asText()));
+            KeyFactory kf = KeyFactory.getInstance("EC");
+            PrivateKey privateKey = kf.generatePrivate(privateKeySpec);
+
+            X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(Base64.getMimeDecoder().decode(root.get("publicKey").asText()));
+            PublicKey publicKey = kf.generatePublic(publicKeySpec);
 
             KeyWrapper kw = new KeyWrapper();
             kw.setKid(kid);
