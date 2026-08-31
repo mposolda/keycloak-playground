@@ -32,32 +32,6 @@ public final class ProofUtil {
     /**
      * Generate a {@link Proofs} object of the requested type.
      *
-     * @param proofType the requested proof type ("jwt" or "attestation")
-     * @param audience  the credential-issuer URL used as JWT audience
-     * @param cNonce    the c_nonce value obtained from the nonce endpoint
-     * @return a populated {@link Proofs} ready to attach to a credential request
-     */
-    public static Proofs buildProofs(String proofType, String audience, String cNonce) {
-        return buildProofs(proofType, audience, cNonce, null, false);
-    }
-
-    /**
-     * Generate a {@link Proofs} object of the requested type.
-     *
-     * @param proofType      the requested proof type ("jwt" or "attestation")
-     * @param audience       the credential-issuer URL used as JWT audience
-     * @param cNonce         the c_nonce value obtained from the nonce endpoint
-     * @param attestationKey pre-generated attestation key to use (required when proofType is "attestation",
-     *                       or when proofType is "jwt" and useAttestationForJwtProof is true)
-     * @return a populated {@link Proofs} ready to attach to a credential request
-     */
-    public static Proofs buildProofs(String proofType, String audience, String cNonce, KeyWrapper attestationKey) {
-        return buildProofs(proofType, audience, cNonce, attestationKey, false);
-    }
-
-    /**
-     * Generate a {@link Proofs} object of the requested type.
-     *
      * @param proofType                 the requested proof type ("jwt" or "attestation")
      * @param audience                  the credential-issuer URL used as JWT audience
      * @param cNonce                    the c_nonce value obtained from the nonce endpoint
@@ -91,11 +65,14 @@ public final class ProofUtil {
     // -------------------------------------------------------------------------
 
     private static String generateJwtProof(String audience, String nonce) {
-        KeyWrapper keyWrapper = createEcKeyPair();
-        keyWrapper.setKid(null); // no kid – embed JWK in header instead
+        KeyWrapper keyWrapper = createEcKeyPair(false);
 
-        JWK jwk = JWKBuilder.create().ec(keyWrapper.getPublicKey());
+        JWK jwk = JWKBuilder.create()
+                .kid(keyWrapper.getKid())
+                .ec(keyWrapper.getPublicKey());
         jwk.setAlgorithm(keyWrapper.getAlgorithm());
+
+        keyWrapper.setKid(null); // no kid – embed JWK in header instead
 
         AccessToken token = new AccessToken();
         token.addAudience(audience);
@@ -120,7 +97,7 @@ public final class ProofUtil {
      */
     private static String generateJwtProofWithKeyAttestation(String audience, String nonce, KeyWrapper attestationKey) {
         // 1. Generate a fresh ephemeral proof key
-        KeyWrapper proofKey = createEcKeyPair();
+        KeyWrapper proofKey = createEcKeyPair(false);
 
         JWK proofJwk = JWKBuilder.create().ec(proofKey.getPublicKey());
         proofJwk.setKeyId(proofKey.getKid());
@@ -170,7 +147,10 @@ public final class ProofUtil {
 
     private static String generateAttestationProof(String nonce, KeyWrapper attestationKey) {
         // The attested key (proof key) is embedded in the attestation body
-        JWK proofJwk = JWKBuilder.create().ec(createEcKeyPair().getPublicKey());
+        KeyWrapper proofKey = createEcKeyPair(false);
+        JWK proofJwk = JWKBuilder.create()
+                .kid(proofKey.getKid())
+                .ec(proofKey.getPublicKey());
 
         long now = System.currentTimeMillis() / 1000;
         KeyAttestationJwtBody body = new KeyAttestationJwtBody();
@@ -191,16 +171,19 @@ public final class ProofUtil {
     // -------------------------------------------------------------------------
 
     /**
-     * Generate a fresh EC key pair (ES256 / P-256) suitable for use as an attestation key.
+     * Generate a fresh EC key pair (ES256 / P-256) suitable for use as an attestation key or proof key.
+     *
+     * @attestation Flag to specify whether this should be attestation key (flag should be true) or proof key (flag should be false)
      */
-    public static KeyWrapper createEcKeyPair() {
+    public static KeyWrapper createEcKeyPair(boolean attestation) {
         try {
             KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", BouncyIntegration.PROVIDER);
             kpg.initialize(256);
             var kp = kpg.generateKeyPair();
 
             KeyWrapper kw = new KeyWrapper();
-            kw.setKid("proof-key-" + System.nanoTime());
+            String kid = attestation ? "attestation-key-" + System.nanoTime() : "proof-key-" + System.nanoTime();
+            kw.setKid(kid);
             kw.setUse(KeyUse.SIG);
             kw.setAlgorithm("ES256");
             kw.setType("EC");

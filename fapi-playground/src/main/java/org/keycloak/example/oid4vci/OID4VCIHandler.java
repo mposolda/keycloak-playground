@@ -532,7 +532,7 @@ public class OID4VCIHandler implements ActionHandler {
 
     private InfoBean generateAttestationKey(ActionHandlerContext actionContext) {
         OID4VCIContext oid4vciCtx = actionContext.getSession().getOrCreateOID4VCIContext();
-        KeyWrapper newKey = ProofUtil.createEcKeyPair();
+        KeyWrapper newKey = ProofUtil.createEcKeyPair(true);
         oid4vciCtx.setAttestationKey(newKey);
         PersistenceProvider.saveAttestationKey(oid4vciCtx);
 
@@ -603,6 +603,14 @@ public class OID4VCIHandler implements ActionHandler {
             if (ProofType.JWT.equals(fullContext.proofType) && fullContext.proofJwt != null) {
                 info.addOutput("JWT proof (parsed header)", parseJwtHeader(fullContext.proofJwt));
                 info.addOutput("JWT proof (parsed payload)", parseJwtPayload(fullContext.proofJwt));
+
+                JWSHeader jwsHeader = new JWSInput(fullContext.proofJwt).getHeader();
+                String keyAttestationJwt = (String) jwsHeader.getOtherClaims().get("key_attestation");
+                if (keyAttestationJwt != null) {
+                    info.addOutput("Key attestation JWT (parsed header)", parseJwtHeader(keyAttestationJwt));
+                    info.addOutput("Key attestation JWT (parsed payload)", parseJwtPayload(keyAttestationJwt));
+                }
+
             } else if (ProofType.ATTESTATION.equals(fullContext.proofType) && fullContext.proofJwt != null) {
                 info.addOutput("Attestation proof (parsed header)", parseJwtHeader(fullContext.proofJwt));
                 info.addOutput("Attestation proof (parsed payload)", parseJwtPayload(fullContext.proofJwt));
