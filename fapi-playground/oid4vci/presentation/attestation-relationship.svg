@@ -1,0 +1,56 @@
+<svg width="100%" viewBox="0 0 760 160" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0, 8 3.5, 0 7" fill="#7c3aed"/>
+    </marker>
+    <marker id="arrow-dark" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0, 8 3.5, 0 7" fill="#1f2328"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0, 8 3.5, 0 7" fill="#059669"/>
+    </marker>
+  </defs>
+
+  <style>
+    text { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; }
+    .box-title { font-size: 12px; font-weight: 700; }
+    .box-sub { font-size: 11px; }
+    .edge-label { font-size: 10px; font-weight: 600; }
+  </style>
+
+  <!-- Node: Attester -->
+  <rect x="10" y="40" width="140" height="70" rx="6" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="80" y="66" text-anchor="middle" class="box-title" fill="#5b21b6">Attester</text>
+  <text x="80" y="84" text-anchor="middle" class="box-sub" fill="#5b21b6">attestation key pair</text>
+  <text x="80" y="99" text-anchor="middle" class="box-sub" fill="#5b21b6">signs key-att. JWT</text>
+
+  <!-- Node: key-attestation JWT -->
+  <rect x="210" y="40" width="180" height="70" rx="6" fill="#f7f8fa" stroke="#e5e7eb" stroke-width="1.5"/>
+  <text x="300" y="66" text-anchor="middle" class="box-title" fill="#1f2328">key-attestation JWT</text>
+  <text x="300" y="84" text-anchor="middle" class="box-sub" fill="#57606a">attested_keys: [ proofKey ]</text>
+  <text x="300" y="99" text-anchor="middle" class="box-sub" fill="#57606a">signed by attestation key</text>
+
+  <!-- Node: Wallet proof key -->
+  <rect x="450" y="40" width="140" height="70" rx="6" fill="#dbeafe" stroke="#3b82d4" stroke-width="1.5"/>
+  <text x="520" y="66" text-anchor="middle" class="box-title" fill="#1e40af">Wallet proof key</text>
+  <text x="520" y="84" text-anchor="middle" class="box-sub" fill="#1e40af">private → signs</text>
+  <text x="520" y="99" text-anchor="middle" class="box-sub" fill="#1e40af">proof JWT</text>
+
+  <!-- Node: Issuer -->
+  <rect x="650" y="40" width="100" height="70" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.5"/>
+  <text x="700" y="66" text-anchor="middle" class="box-title" fill="#065f46">Issuer</text>
+  <text x="700" y="84" text-anchor="middle" class="box-sub" fill="#065f46">verifies both</text>
+  <text x="700" y="99" text-anchor="middle" class="box-sub" fill="#065f46">JWTs</text>
+
+  <!-- Arrow: Attester -> key-attestation JWT (signs) -->
+  <path d="M 150 75 L 202 75" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+  <text x="180" y="67" text-anchor="middle" class="edge-label" fill="#5b21b6">signs</text>
+
+  <!-- Arrow: key-attestation JWT -> Wallet proof key (contains) -->
+  <path d="M 390 75 L 442 75" stroke="#1f2328" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-dark)"/>
+  <text x="420" y="67" text-anchor="middle" class="edge-label" fill="#57606a">contains</text>
+
+  <!-- Arrow: Wallet proof key -> Issuer (sent to) -->
+  <path d="M 590 75 L 642 75" stroke="#059669" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+  <text x="620" y="67" text-anchor="middle" class="edge-label" fill="#065f46">sent to</text>
+</svg>
