@@ -41,19 +41,19 @@ public final class ProofUtil {
      *                                  header into the JWT proof signed by the attestation key
      * @return a populated {@link Proofs} ready to attach to a credential request
      */
-    public static Proofs buildProofs(String proofType, String audience, String cNonce, KeyWrapper attestationKey, boolean useAttestationForJwtProof) {
+    public static Proofs buildProofs(String proofType, String audience, String cNonce, KeyWrapper proofKey, KeyWrapper attestationKey, boolean useAttestationForJwtProof) {
         switch (proofType) {
             case ProofType.JWT -> {
                 String jwtProof = useAttestationForJwtProof
-                        ? generateJwtProofWithKeyAttestation(audience, cNonce, attestationKey)
-                        : generateJwtProof(audience, cNonce);
+                        ? generateJwtProofWithKeyAttestation(audience, cNonce, proofKey, attestationKey)
+                        : generateJwtProof(audience, cNonce, proofKey);
                 return new Proofs().setJwt(List.of(jwtProof));
             }
             case ProofType.ATTESTATION -> {
                 if (attestationKey == null) {
                     throw new IllegalStateException("Please generate and configure attestation key before sending an attestation proof");
                 }
-                String attestationJwt = generateAttestationProof(cNonce, attestationKey);
+                String attestationJwt = generateAttestationProof(cNonce, proofKey, attestationKey);
                 return new Proofs().setAttestation(List.of(attestationJwt));
             }
             default -> throw new IllegalArgumentException("Unsupported proof type: " + proofType);
@@ -64,15 +64,15 @@ public final class ProofUtil {
     // JWT proof
     // -------------------------------------------------------------------------
 
-    private static String generateJwtProof(String audience, String nonce) {
-        KeyWrapper keyWrapper = createEcKeyPair(false);
-
+    private static String generateJwtProof(String audience, String nonce, KeyWrapper proofKey) {
         JWK jwk = JWKBuilder.create()
-                .kid(keyWrapper.getKid())
-                .ec(keyWrapper.getPublicKey());
-        jwk.setAlgorithm(keyWrapper.getAlgorithm());
+                .kid(proofKey.getKid())
+                .ec(proofKey.getPublicKey());
+        jwk.setAlgorithm(proofKey.getAlgorithm());
 
-        keyWrapper.setKid(null); // no kid – embed JWK in header instead
+        // Work on a copy so we don't mutate the stored proofKey's kid
+        KeyWrapper signingKey = proofKey.cloneKey();
+        signingKey.setKid(null); // no kid – embed JWK in header instead
 
         AccessToken token = new AccessToken();
         token.addAudience(audience);
@@ -83,7 +83,7 @@ public final class ProofUtil {
                 .type(JwtProofValidator.PROOF_JWT_TYP)
                 .jwk(jwk)
                 .jsonContent(token)
-                .sign(new ECDSASignatureSignerContext(keyWrapper));
+                .sign(new ECDSASignatureSignerContext(signingKey));
     }
 
     /**
@@ -95,10 +95,8 @@ public final class ProofUtil {
      * placed in the {@code key_attestation} header of the outer JWT proof.
      * </p>
      */
-    private static String generateJwtProofWithKeyAttestation(String audience, String nonce, KeyWrapper attestationKey) {
-        // 1. Generate a fresh ephemeral proof key
-        KeyWrapper proofKey = createEcKeyPair(false);
-
+    private static String generateJwtProofWithKeyAttestation(String audience, String nonce, KeyWrapper proofKey, KeyWrapper attestationKey) {
+        // 1. Use the provided proof key
         JWK proofJwk = JWKBuilder.create().ec(proofKey.getPublicKey());
         proofJwk.setKeyId(proofKey.getKid());
         proofJwk.setAlgorithm(proofKey.getAlgorithm());
@@ -129,6 +127,10 @@ public final class ProofUtil {
         header.put("jwk", proofJwk);
         header.put("key_attestation", innerAttestationJwt);
 
+        // Work on a copy so we don't mutate the stored proofKey's kid
+        KeyWrapper signingKey = proofKey.cloneKey();
+        signingKey.setKid(null);
+
         return new JWSBuilder() {
             @Override
             protected String encodeHeader(String sigAlgName) {
@@ -138,16 +140,15 @@ public final class ProofUtil {
                     throw new RuntimeException("Failed to encode JWT proof header with key_attestation", e);
                 }
             }
-        }.jsonContent(token).sign(new ECDSASignatureSignerContext(proofKey));
+        }.jsonContent(token).sign(new ECDSASignatureSignerContext(signingKey));
     }
 
     // -------------------------------------------------------------------------
     // Attestation proof
     // -------------------------------------------------------------------------
 
-    private static String generateAttestationProof(String nonce, KeyWrapper attestationKey) {
-        // The attested key (proof key) is embedded in the attestation body
-        KeyWrapper proofKey = createEcKeyPair(false);
+    private static String generateAttestationProof(String nonce, KeyWrapper proofKey, KeyWrapper attestationKey) {
+        // The provided proof key is embedded in the attestation body
         JWK proofJwk = JWKBuilder.create()
                 .kid(proofKey.getKid())
                 .ec(proofKey.getPublicKey());

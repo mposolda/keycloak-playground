@@ -240,10 +240,12 @@ and seeing that there is new issued-credential
 
 The `OID4VCI proof type` combo-box in the OID4VCI section controls whether a holder-binding proof is attached to the credential request (see [OID4VCI specification section 8.2](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-proof-types)).
 
+**Important:** Before sending a credential request with any proof type other than `none`, you must first click **Generate proof key** in the OID4VCI section. This generates an in-memory EC key pair that is used to sign the proof. If no proof key has been generated, clicking `Credential request` will show the error `Proof key required`. The proof key does not survive an application restart.
+
 Available values:
 - **none** (default) — no `proofs` parameter is sent; same behaviour as before.
-- **jwt** — a freshly generated JWT proof is attached. The application generates an ephemeral EC key pair, obtains a `c_nonce` from the Keycloak nonce endpoint, and signs a `openid4vci-proof+jwt` JWT with the credential-issuer URL as audience.
-- **attestation** — a key-attestation proof is attached. The application uses a previously generated attestation key, embeds a freshly generated proof key inside the attestation JWT body, and signs a `key-attestation+jwt` JWT containing the `c_nonce`. See below for how to generate and configure the attestation key first.
+- **jwt** — a JWT proof is attached. The application uses the pre-generated proof key, obtains a `c_nonce` from the Keycloak nonce endpoint, and signs a `openid4vci-proof+jwt` JWT with the credential-issuer URL as audience.
+- **attestation** — a key-attestation proof is attached. The application uses a previously generated attestation key, embeds the pre-generated proof key inside the attestation JWT body, and signs a `key-attestation+jwt` JWT containing the `c_nonce`. See below for how to generate and configure the attestation key first.
 
 ##### Configuring Keycloak to require proofs
 
@@ -274,15 +276,16 @@ Keycloak's `JwtProofValidator` will verify this attestation header against the r
 
 - When the checkbox is **OFF** (default), the `jwt` proof is generated as usual with a plain `jwk` header and no attestation.
 - When the checkbox is **ON** and an attestation key has **not** been generated yet, clicking `Credential request` will show the same error as for the `attestation` proof type: `Attestation key missing`.
-- When the checkbox is **ON** and an attestation key **has** been generated, the JWT proof will embed the `key_attestation` header containing an inner attestation JWT that attests the ephemeral proof key. This is the format described in [OID4VCI specification section 8.2.1.1](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-jwt-proof-type) and validated by `JwtProofValidator` in the Keycloak codebase.
+- When the checkbox is **ON** and an attestation key **has** been generated, the JWT proof will embed the `key_attestation` header containing an inner attestation JWT that attests the proof key. This is the format described in [OID4VCI specification section 8.2.1.1](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-jwt-proof-type) and validated by `JwtProofValidator` in the Keycloak codebase.
 
 To use this feature:
 
-1. Follow the same steps as for the `attestation` proof type (generate the attestation key, configure the Trusted Key IDP in Keycloak, and link it to the client). See the section *Additional steps for the `attestation` proof type* below.
-2. Select `jwt` from the `OID4VCI proof type` combo-box **and** check the `Use attestation for JWT proofs` checkbox.
-3. Click `Credential request`. The JWT proof will contain:
-   - A `jwk` header with the freshly generated ephemeral proof key.
-   - A `key_attestation` header with the inner attestation JWT signed by the attestation key, attesting the ephemeral proof key.
+1. Click **Generate proof key** in the OID4VCI section to generate the proof key first.
+2. Follow the same steps as for the `attestation` proof type (generate the attestation key, configure the Trusted Key IDP in Keycloak, and link it to the client). See the section *Additional steps for the `attestation` proof type* below.
+3. Select `jwt` from the `OID4VCI proof type` combo-box **and** check the `Use attestation for JWT proofs` checkbox.
+4. Click `Credential request`. The JWT proof will contain:
+   - A `jwk` header with the pre-generated proof key.
+   - A `key_attestation` header with the inner attestation JWT signed by the attestation key, attesting the proof key.
 
 > **Note:** The attestation key must be registered in Keycloak's Trusted Key identity provider (same as for the standalone `attestation` proof). If `Use attestation for JWT proofs` is checked but no attestation key has been generated, the application will block the request with an error.
 
@@ -292,20 +295,22 @@ The `attestation` proof type requires that Keycloak has a **Trusted Key** identi
 
 Follow these steps **before** selecting `attestation` and clicking `Credential request`:
 
-1. In the fapi-playground application, click **Generate attestation key** (in the OID4VCI section).
+1. In the fapi-playground application, click **Generate proof key** (in the OID4VCI section) to generate the proof key used inside the attestation proof body.
+
+2. In the fapi-playground application, click **Generate attestation key** (in the OID4VCI section).
    The page will display the public key of the generated attestation key in JWKS format under the heading `Attestation key (public JWKS)`.
    Copy this JWKS value.
 
-2. In the Keycloak admin console for realm `test`, go to **Identity Providers** and create a new **Trusted Key** identity provider.
+3. In the Keycloak admin console for realm `test`, go to **Identity Providers** and create a new **Trusted Key** identity provider.
    Paste the JWKS copied from the previous step into the field `Validating public key` of the provider configuration (field is visible once `Use JWKS URL` is unchecked).
    Save the identity provider.
    For more details on how to configure the Trusted Key identity provider see the [Keycloak documentation on OID4VCI proofs](https://www.keycloak.org/docs/nightly/server_admin/index.html#_oid4vci_proofs).
 
-3. On your registered OIDC client in the Keycloak admin console, go to the **Advanced** tab → section **OpenID for Verifiable Credentials**.
+4. On your registered OIDC client in the Keycloak admin console, go to the **Advanced** tab → section **OpenID for Verifiable Credentials**.
    Under **Trusted Key providers**, add a reference to the Trusted Key identity provider created in the previous step.
    Save the client.
 
-4. Back in the fapi-playground application, select `attestation` from the `OID4VCI proof type` combo-box and click **Credential request**.
+5. Back in the fapi-playground application, select `attestation` from the `OID4VCI proof type` combo-box and click **Credential request**.
    The attestation proof will be signed with the key generated in step 1 and Keycloak will be able to verify it against the registered JWKS.
 
 > **Note:** If you click **Generate attestation key** again, a new key pair is created and the old one is discarded. You must then repeat steps 2–3 above with the new JWKS, otherwise Keycloak will again reject the proof.

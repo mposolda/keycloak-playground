@@ -26,6 +26,9 @@ public class OID4VCIContext {
     // Attestation key (generated on demand, persisted across credential requests)
     private KeyWrapper attestationKey;
 
+    // Proof key (generated on demand, in-memory only – not persisted, but survives cleanup/logout)
+    private KeyWrapper proofKey;
+
     // Obtained from requests
     private CredentialIssuer credentialIssuerMetadata;
     private CredentialOfferURI credentialOfferURI;
@@ -87,6 +90,14 @@ public class OID4VCIContext {
 
     public void setAttestationKey(KeyWrapper attestationKey) {
         this.attestationKey = attestationKey;
+    }
+
+    public KeyWrapper getProofKey() {
+        return proofKey;
+    }
+
+    public void setProofKey(KeyWrapper proofKey) {
+        this.proofKey = proofKey;
     }
 
     public String getPreauthzUsername() {

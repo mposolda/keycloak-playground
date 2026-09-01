@@ -2,9 +2,14 @@ package org.keycloak.example.oid4vci;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.jboss.logging.Logger;
 import org.keycloak.OAuth2Constants;
+import org.keycloak.OID4VCConstants;
 import org.keycloak.VCFormat;
+import org.keycloak.common.util.Time;
+import org.keycloak.crypto.ECDSASignatureSignerContext;
 import org.keycloak.crypto.KeyWrapper;
 import org.keycloak.example.Services;
 import org.keycloak.example.bean.InfoBean;
@@ -20,6 +25,7 @@ import org.keycloak.protocol.oid4vc.issuance.OID4VCAuthorizationDetailsParser;
 import org.keycloak.protocol.oid4vc.model.*;
 import org.keycloak.representations.IDToken;
 import org.keycloak.representations.idm.oid4vc.VerifiableCredentialOfferActionConfig;
+import org.keycloak.sdjwt.vp.KeyBindingJWT;
 import org.keycloak.sdjwt.vp.SdJwtVP;
 import org.keycloak.testsuite.util.oauth.AbstractHttpPostRequest;
 import org.keycloak.testsuite.util.oauth.AccessTokenResponse;
@@ -64,7 +70,8 @@ public class OID4VCIHandler implements ActionHandler {
                 "oid4vci-credential-request", this::credentialRequest,
                 "oid4vci-last-credential-response", this::getLastCredentialResponse,
                 "oid4vci-create-presentation", this::createPresentation,
-                "oid4vci-generate-attestation-key", this::generateAttestationKey
+                "oid4vci-generate-attestation-key", this::generateAttestationKey,
+                "oid4vci-generate-proof-key", this::generateProofKey
         );
     }
 
@@ -469,7 +476,7 @@ public class OID4VCIHandler implements ActionHandler {
                 String cNonce = nonceResp.getNonce();
 
                 String credentialIssuer = oauth.oid4vc().issuerMetadataRequest().send().getMetadata().getCredentialIssuer();
-                Proofs proofs = ProofUtil.buildProofs(proofType, credentialIssuer, cNonce, oid4VCIContext.getAttestationKey(), oid4VCIContext.isUseAttestationForJwtProof());
+                Proofs proofs = ProofUtil.buildProofs(proofType, credentialIssuer, cNonce, oid4VCIContext.getProofKey(), oid4VCIContext.getAttestationKey(), oid4VCIContext.isUseAttestationForJwtProof());
                 credentialRequest.proofs(proofs);
                 log.infof("Attaching '%s' proof to credential request (c_nonce obtained from nonce endpoint, useAttestationForJwtProof: %s)", proofType, oid4VCIContext.isUseAttestationForJwtProof());
 
@@ -530,6 +537,29 @@ public class OID4VCIHandler implements ActionHandler {
         }
     }
 
+    private InfoBean generateProofKey(ActionHandlerContext actionContext) {
+        OID4VCIContext oid4vciCtx = actionContext.getSession().getOrCreateOID4VCIContext();
+        KeyWrapper newKey = ProofUtil.createEcKeyPair(false);
+        oid4vciCtx.setProofKey(newKey);
+
+        try {
+            JWK publicJwk = JWKBuilder.create().ec(newKey.getPublicKey());
+            publicJwk.setKeyId(newKey.getKid());
+            publicJwk.setAlgorithm(newKey.getAlgorithm());
+
+            Map<String, Object> jwksMap = Map.of("keys", List.of(publicJwk));
+            String jwksStr = JsonSerialization.writeValueAsPrettyString(jwksMap);
+            return new InfoBean(
+                    "Proof key generated",
+                    "A new EC (ES256) proof key has been generated and stored in memory. " +
+                    "This key is used to sign credential request proofs and key-binding JWTs in presentations.",
+                    "Proof key (public JWKS)",
+                    jwksStr);
+        } catch (IOException e) {
+            throw new MyException("Failed to serialize proof key to JWKS", e);
+        }
+    }
+
     private InfoBean generateAttestationKey(ActionHandlerContext actionContext) {
         OID4VCIContext oid4vciCtx = actionContext.getSession().getOrCreateOID4VCIContext();
         KeyWrapper newKey = ProofUtil.createEcKeyPair(true);
@@ -565,6 +595,11 @@ public class OID4VCIHandler implements ActionHandler {
 
         if (oid4vcAccessToken == null) {
             return new InfoBean("No OID4VCI access token", "No access token capable of doing OID4VCI credential request. Please start OID4VCI authorization-code or pre-authorization code grant");
+        }
+
+        if (!checkProofKeyPresentIfNeeded(oid4vciCtx)) {
+            return new InfoBean("Proof key required",
+                    "You need to create proof key before sending credential request with the proof.");
         }
 
         if (!checkAttestationKeyPresentIfNeeded(oid4vciCtx)) {
@@ -622,6 +657,14 @@ public class OID4VCIHandler implements ActionHandler {
         } catch (Exception ioe) {
             throw new MyException("Unexpected exception when preparing/sending credential request: " + ioe.getMessage(), ioe);
         }
+    }
+
+    private boolean checkProofKeyPresentIfNeeded(OID4VCIContext oid4vciCtx) {
+        String proofType = oid4vciCtx.getProofType();
+        if (!"none".equals(proofType) && oid4vciCtx.getProofKey() == null) {
+            return false;
+        }
+        return true;
     }
 
     private boolean checkAttestationKeyPresentIfNeeded(OID4VCIContext oid4vciCtx) {
@@ -686,8 +729,29 @@ public class OID4VCIHandler implements ActionHandler {
                 // Assumptions it is Sd-JWT VC. TODO: Make it working for W3C credentials...
                 SdJwtVP sdJWTVP = SdJwtVP.of(credentialStr);
 
-                String newSdJWT = sdJWTVP.presentWithSpecifiedClaims (claimsToPresent, false, null, null);
-                log.infof("New sd JWT: %s",  newSdJWT);
+                // Check if the credential has key-binding (cnf claim present)
+                JsonNode cnfClaim = sdJWTVP.getCnfClaim();
+                ObjectNode keyBindingClaims = null;
+                ECDSASignatureSignerContext holderSignerContext = null;
+
+                if (cnfClaim != null) {
+                    KeyWrapper proofKey = oid4vciCtx.getProofKey();
+                    if (proofKey == null) {
+                        return new InfoBean("Proof key required",
+                                "You need to create proof key before creating a key-bound presentation.");
+                    }
+                    long now = Time.currentTime();
+                    keyBindingClaims = JsonNodeFactory.instance.objectNode();
+                    keyBindingClaims.put(OID4VCConstants.CLAIM_NAME_IAT, now);
+                    keyBindingClaims.put(OID4VCConstants.CLAIM_NAME_EXP, now + 3600);
+                    holderSignerContext = new ECDSASignatureSignerContext(proofKey);
+                    log.infof("Credential has cnf claim – creating key-bound presentation");
+                } else {
+                    log.infof("Credential has no cnf claim – creating unbound presentation");
+                }
+
+                String newSdJWT = sdJWTVP.presentWithSpecifiedClaims(claimsToPresent, false, keyBindingClaims, holderSignerContext);
+                log.infof("New sd JWT: %s", newSdJWT);
 
                 SdJwtVP presentation = SdJwtVP.of(newSdJWT);
 
@@ -700,16 +764,24 @@ public class OID4VCIHandler implements ActionHandler {
                 }
                 claimsStr.append("}");
 
-                return new InfoBean(
-                        "Plain-presentation", credentialStr,
-                        "Sd-JWT presentation - header", JsonSerialization.writeValueAsPrettyString(jwsHeader),
-                        "Sd-JWT presentation - payload", JsonSerialization.writeValueAsPrettyString(payloadNode),
-                        "Sd-JWT presentation - disclosed claims", claimsStr.toString());
+                InfoBean info = new InfoBean();
+                info.addOutput("Plain-presentation", newSdJWT);
+                info.addOutput("Sd-JWT presentation - header", JsonSerialization.writeValueAsPrettyString(jwsHeader));
+                info.addOutput("Sd-JWT presentation - payload", JsonSerialization.writeValueAsPrettyString(payloadNode));
+                info.addOutput("Sd-JWT presentation - disclosed claims", claimsStr.toString());
+
+                // If a key-binding JWT was added, display it
+                if (presentation.getKeyBindingJWT().isPresent()) {
+                    KeyBindingJWT kb = presentation.getKeyBindingJWT().get();
+                    info.addOutput("Key-binding JWT (parsed header)", JsonSerialization.writeValueAsPrettyString(kb.getJwsHeader()));
+                    info.addOutput("Key-binding JWT (parsed payload)", JsonSerialization.writeValueAsPrettyString(kb.getPayload()));
+                }
+
+                return info;
             } catch (IOException ioe) {
                 throw new MyException("Exception when displaying latest presentation", ioe);
             }
         }
-
     }
 
     private InfoBean handleAIAFlow(ActionHandlerContext actionContext) {
